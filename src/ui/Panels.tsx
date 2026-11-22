@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react';
-import { theWorld } from './GameView';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { CLAIM_RING, ownClaim, theWorld } from './GameView';
+import { suggestRoute } from '../sim/autoroute';
 import {
   COMMODITIES, FINANCE, LOCOS, MILL, MINE, RESOURCES, STATION, SURVEY, TRACK, UPGRADES, WAGON, WORLD, fmtMoney, gradePct,
   type CommodityId,
@@ -12,7 +13,12 @@ import { heightAt, soilAt } from '../sim/terrain';
 import { cargoTons, maxWagons, planService, spareWagons } from '../sim/trains';
 import type { Deposit, GameState, Train } from '../sim/types';
 import { ci } from '../sim/worldgen';
-import { useUI } from '../store';
+import { isPhone, loanFor, useUI } from '../store';
+
+/** True on a phone-sized screen, and kept true or false as the window changes. */
+export function usePhone(): boolean {
+  return useSyncExternalStore((cb) => { const m = matchMedia('(max-width: 820px)'); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); }, isPhone, () => false);
+}
 
 const tons = (v: number) => `${v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toFixed(1)} t`;
 const miles = (cells: number) => `${(cells * MILES_PER_CELL).toFixed(2)} mi`;
@@ -261,6 +267,46 @@ function TerrainPanel({ g }: { g: GameState }) {
   );
 }
 
+/** Sign the contract for the line laid out, and take the player to where the work starts. */
+function signLine() {
+  const ui = useUI.getState(), first = ui.way[0];
+  const r = ui.run({ type: 'buildLine', way: ui.way, options: ui.routeOpt });
+  if (r.ok) { ui.setWay([]); ui.setTool('inspect'); if (first) theWorld?.focus(first.x + 3, first.z, 30); }
+}
+/** Whether the line laid out stops short of a claim the railroad has not reached yet. */
+function stopsShort(g: GameState): boolean {
+  const ui = useUI.getState(), gold = ownClaim(g), end = ui.way[ui.way.length - 1];
+  return !g.stats.reachedClaim && !!gold && !!end && !ui.line?.end && Math.hypot(end.x - gold.x, end.z - gold.z) > CLAIM_RING;
+}
+/** The first line is no use without a mine and a platform at the end of it, so the first loan covers those too. */
+const opening = (g: GameState) => g.mines.length === 0 && g.edges.length === 0;
+function contractLoan(g: GameState, short: number): number | null {
+  return (opening(g) ? loanFor(g, short, MINE.cost + STATION.platformCost + 1500) : null) ?? loanFor(g, short);
+}
+/** The one thing to do next with a line that has been laid out: fix it, borrow for it, or sign for it. */
+function ContractAction({ g }: { g: GameState }) {
+  const run = useUI((s) => s.run);
+  const line = useUI((s) => s.line);
+  if (!line) return null;
+  const total = line.plan.total, short = total - g.finance.cash, loan = contractLoan(g, short);
+  if (line.error) return <Btn kind="primary" onClick={() => undefined} disabled>Not buildable</Btn>;
+  if (short > 0 && loan) return <Btn kind="primary" onClick={() => run({ type: 'borrow', amount: loan })}>Borrow {fmtMoney(loan)}</Btn>;
+  if (short > 0) return <Btn kind="primary" onClick={() => undefined} disabled>Short by {fmtMoney(short)}</Btn>;
+  return <Btn kind="primary" onClick={signLine}>Sign the contract · {fmtMoney(total)}</Btn>;
+}
+/** What stands between the line and a signature, in a sentence. */
+function contractNote(g: GameState): { text: string; bad?: boolean } | null {
+  const ui = useUI.getState(), line = ui.line;
+  if (!line) return null;
+  if (line.error) return { text: line.error, bad: true };
+  const short = line.plan.total - g.finance.cash;
+  if (short > 0) return contractLoan(g, short)
+    ? { text: opening(g) && contractLoan(g, short)! > short + 5000 ? `You hold ${fmtMoney(g.finance.cash)}. The bank lends the rest, and enough to open the mine, at ${(monthlyRate(g) * 100).toFixed(1)}% a month.` : `You hold ${fmtMoney(g.finance.cash)}. The bank lends the rest at ${(monthlyRate(g) * 100).toFixed(1)}% a month.` }
+    : { text: `Short by ${fmtMoney(short)}, and the bank will not lend that much. Draw a shorter or easier line.`, bad: true };
+  if (stopsShort(g)) return { text: 'This stops short of the claim. Drag on from the gold end, into the ring.' };
+  return null;
+}
+
 function RailPanel({ g }: { g: GameState }) {
   const ui = useUI();
   const line = ui.line, plan = line?.plan;
@@ -269,12 +315,6 @@ function RailPanel({ g }: { g: GameState }) {
     ['Rails and ties', plan.items.rails], ['Labour', plan.items.labour], ['Grading', plan.items.grading], ['Explosives', plan.items.explosives],
     ['Bridges', plan.items.bridges], ['Tunnels', plan.items.tunnels], ['Land and clearing', plan.items.land], ['Own timber and stone', plan.items.materialsCredit],
   ] : [];
-  const approve = () => {
-    const first = ui.way[0];
-    const r = ui.run({ type: 'buildLine', way: ui.way, options: ui.routeOpt });
-    // the money is spent: take the player to where the work starts
-    if (r.ok) { ui.setWay([]); ui.setTool('inspect'); if (first) theWorld?.focus(first.x + 3, first.z, 30); }
-  };
   let est: ReactNode = null;
   if (plan && plan.pts.length > 3) {
     // what the present engine could haul over this line alone, in each direction
@@ -283,17 +323,21 @@ function RailPanel({ g }: { g: GameState }) {
     for (let i = 4; i < plan.pts.length; i++) { const gr = gradePct((plan.pts[i].h - plan.pts[i - 4].h) / (cum[i] - cum[i - 4])); up = Math.max(up, gr); dn = Math.max(dn, -gr); }
     est = <Row k={`${LOCOS[train.loco].name} could take`} v={`${maxWagons(LOCOS[train.loco], dn, up)} hoppers`} />;
   }
+  const note = contractNote(g);
+  const surveyed = () => { const way = suggestRoute(g, ui.way[0], ui.way[ui.way.length - 1]); if (way) { ui.keepWay(); ui.setWay(way); } else ui.toast('info', 'The surveyor finds no better way between these two points.'); };
   return (
     <>
       <Section title="Lay a line">
         {ui.lifting ? <p className="status">Click a finished line to lift its rails. A fifth of their cost comes back; the earthworks stay.</p>
-          : ui.way.length === 0 ? <p className="status">Click existing track or the city terminal to start, then click where the line should go. The surveyor proposes a route; you improve it.</p>
-          : ui.way.length === 1 ? <p className="status">Now click the destination.</p>
-          : <p className="status">Drag a marker to move it. Click the ground to add one. Double-click a marker to remove it.</p>}
+          : ui.way.length === 0 ? <p className="status">Press on the {g.edges.length ? 'terminal, or on any track you own,' : 'gold marker at the Prosperity terminal'} and drag. The line follows your hand, and the engineer prices it as you go.</p>
+          : ui.way.length === 1 ? <p className="status">Drag from the marker to draw the line. Or click where it should end, and the surveyor will find a way there.</p>
+          : <p className="status">Drag from the gold end to carry the line on. Drag a white marker to bend it, click the ground to add one, double-click one to remove it.</p>}
         <div className="btnrow">
-          <Btn kind={ui.lifting ? 'danger' : 'ghost'} onClick={() => { ui.set({ lifting: !ui.lifting }); ui.setWay([]); }}>{ui.lifting ? 'Stop lifting track' : 'Lift track…'}</Btn>
+          {ui.wayUndo.length > 0 && <Btn kind="ghost" onClick={ui.undoWay}>Undo</Btn>}
           {ui.way.length > 0 && <Btn kind="ghost" onClick={() => ui.setWay([])}>Start over</Btn>}
-          {ui.way.length > 2 && <Btn kind="ghost" onClick={() => ui.setWay([ui.way[0], ui.way[ui.way.length - 1]])}>Straight line</Btn>}
+          {ui.way.length > 1 && <Btn kind="ghost" onClick={surveyed} title="Let the surveyor find the easiest ground between the two ends">Surveyor's route</Btn>}
+          {ui.way.length > 2 && <Btn kind="ghost" onClick={() => { ui.keepWay(); ui.setWay([ui.way[0], ui.way[ui.way.length - 1]]); }}>Straight line</Btn>}
+          <Btn kind={ui.lifting ? 'danger' : 'ghost'} onClick={() => { ui.set({ lifting: !ui.lifting }); ui.setWay([]); }}>{ui.lifting ? 'Stop lifting track' : 'Lift track…'}</Btn>
         </div>
       </Section>
       {plan && plan.pts.length > 0 && (
@@ -314,7 +358,6 @@ function RailPanel({ g }: { g: GameState }) {
             {items.filter(([, v]) => v !== 0).map(([k, v]) => <Row key={k} k={k} v={fmtMoney(v)} />)}
             <div className="rule" />
             <Row k="Total" v={<strong>{fmtMoney(plan.total)}</strong>} tone={plan.total > g.finance.cash ? 'bad' : undefined} />
-            {plan.total > g.finance.cash && <p className="hint bad">Short by {fmtMoney(plan.total - g.finance.cash)}. The bank is under Finance.</p>}
             <div className="legend"><i className="k0" />at grade<i className="k1" />earthwork<i className="k2" />trestle<i className="k3" />tunnel</div>
           </Section>
           <Section title="Engineering choices">
@@ -322,11 +365,63 @@ function RailPanel({ g }: { g: GameState }) {
             <label className="check"><input type="checkbox" checked={ui.routeOpt.bridges} onChange={(e) => ui.setWay(ui.way, { bridges: e.target.checked })} /> Trestle over deep hollows instead of filling them</label>
             <label className="check"><input type="checkbox" checked={ui.routeOpt.tunnels} onChange={(e) => ui.setWay(ui.way, { tunnels: e.target.checked })} /> Tunnel where a cut would be deeper than 55 ft</label>
           </Section>
-          <div className="sticky"><Btn kind="primary" onClick={approve} disabled={!!line!.error}>Sign the contract · {fmtMoney(plan.total)}</Btn></div>
+          <div className="sticky">
+            {note && !line!.error && <p className={`hint ${note.bad ? 'bad' : ''}`}>{note.text}</p>}
+            <ContractAction g={g} />
+          </div>
         </>
       )}
       {g.jobs.length > 0 && <Section title="Under construction">{g.jobs.map((j) => <div key={j.id}><Row k={miles(j.length)} v={`${Math.round((j.progress / j.length) * 100)}%`} /><div className="meter"><span style={{ width: `${(j.progress / j.length) * 100}%` }} /></div></div>)}</Section>}
     </>
+  );
+}
+
+/**
+ * On a phone the map is the whole screen and track is drawn on it with a finger, so the Railroad tool keeps to a strip
+ * above the tools: what to do, what the line costs, and the one button that moves it forward. The full estimate is a tap away.
+ */
+function RailDock({ g }: { g: GameState }) {
+  const ui = useUI();
+  const line = ui.line, plan = line?.plan, note = contractNote(g);
+  const laid = !!plan && ui.way.length >= 2;
+  return (
+    <aside className={`dock ${ui.drawing ? 'drawing' : ''}`} aria-label="Railroad">
+      {ui.lifting ? <p className="docktitle">Tap a finished line to lift its rails.</p>
+        : laid ? <p className="docktitle"><b>{fmtMoney(plan!.total)}</b><span>{miles(plan!.length)} · {Math.ceil(plan!.buildDays)} days to build · {plan!.maxGrade.toFixed(1)}% grade</span></p>
+        : ui.way.length === 1 ? <p className="docktitle">Drag from the gold marker to draw the line.</p>
+        : <p className="docktitle">{g.edges.length ? 'Put a finger on a gold marker and drag to draw a line.' : g.stats.reachedClaim ? 'Put a finger on the gold marker and drag to draw a line.' : 'Put a finger on the gold marker at Prosperity and drag to the ring on the claim.'}</p>}
+      {laid && !ui.lifting && note && <p className={`docksub ${note.bad ? 'bad' : ''}`}>{note.text}</p>}
+      {(laid || ui.lifting || ui.way.length === 1) && (
+        <div className="dockrow">
+          {ui.lifting ? <Btn kind="danger" onClick={() => ui.set({ lifting: false })}>Stop lifting track</Btn> : (
+            <>
+              {ui.wayUndo.length > 0 && <Btn kind="ghost" onClick={ui.undoWay}>Undo</Btn>}
+              <Btn kind="ghost" onClick={() => ui.setWay([])}>Clear</Btn>
+              {laid && <Btn kind="ghost" onClick={() => ui.set({ panelOpen: true })}>Details</Btn>}
+              {laid && <ContractAction g={g} />}
+            </>
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+/** The same strip for the other tools that work on the map: what a tap will do, and a way back to the choices. */
+function ToolDock({ g }: { g: GameState }) {
+  const ui = useUI();
+  const text = ui.tool === 'build'
+    ? ui.buildKind === 'mine' ? `Mine · ${fmtMoney(MINE.cost)}. Tap level ground on your claim, near the track.`
+      : ui.buildKind === 'platform' ? `Loading platform · ${fmtMoney(STATION.platformCost)}. Tap the track beside the mine.`
+      : `Stamp mill · ${fmtMoney(MILL.cost)}. Tap level ground beside the mine.`
+    : ui.tool === 'terrain' ? `${TERRAIN_TOOLS.find((t) => t[0] === ui.terrainTool)![1]}, ${['small', 'medium', 'wide'][ui.brush - 1]} brush. Tap the ground to work it.`
+    : `Tap any ground to prospect it · ${fmtMoney(SURVEY.prospectCost)}.`;
+  void g;
+  return (
+    <aside className="dock slim" aria-label={TITLES[ui.tool]}>
+      <p className="docktitle">{text}</p>
+      <Btn kind="ghost" onClick={() => ui.set({ panelOpen: true })}>Options</Btn>
+    </aside>
   );
 }
 
@@ -341,11 +436,11 @@ function BuildPanel({ g }: { g: GameState }) {
     <>
       <Section title="Build">
         {kinds.map(([id, name, cost, text]) => (
-          <button type="button" key={id} className={`pick ${ui.buildKind === id ? 'on' : ''}`} onClick={() => ui.set({ buildKind: id })} aria-pressed={ui.buildKind === id}>
+          <button type="button" key={id} className={`pick ${ui.buildKind === id ? 'on' : ''}`} onClick={() => ui.set({ buildKind: id, ...(isPhone() ? { panelOpen: false } : {}) })} aria-pressed={ui.buildKind === id}>
             <span className="t">{name}</span><span className="c">{fmtMoney(cost)}</span><span className="d">{text}</span>
           </button>
         ))}
-        <p className="hint">Green ground can be built on. If a site is too rough, level it with Terrain → Grade first.</p>
+        <p className="hint">Pick what to build, then tap the ground. If a site is too rough, level it with Terrain → Grade first.</p>
       </Section>
       <Section title="Shipping raw ore or concentrate?">
         <p className="status">Raw gold ore fetches about ${price(g, 'gold_ore', g.day).toFixed(0)} a ton; concentrate about ${price(g, 'gold_conc', g.day).toFixed(0)}. A mill costs {fmtMoney(MILL.tiers[0].cost)} a day to run, and one hopper of concentrate is worth sixteen of ore. The farther the mine, the stronger the case.</p>
@@ -460,8 +555,12 @@ export function SidePanel() {
   const open = useUI((s) => s.panelOpen);
   const set = useUI((s) => s.set);
   useUI((s) => s.rev);
+  const phone = usePhone();
   const showSel = !!sel && (tool === 'inspect' || tool === 'trains' || tool === 'finance' || tool === 'works');
-  if (!open || (tool === 'inspect' && !sel)) return null;
+  if (!open || (tool === 'inspect' && !sel)) {
+    if (!phone || sel) return null;
+    return tool === 'rail' ? <RailDock g={g} /> : tool === 'build' || tool === 'terrain' || tool === 'survey' ? <ToolDock g={g} /> : null;
+  }
   return (
     <aside className="panel" aria-label={showSel ? 'Selection' : TITLES[tool]}>
       <header className="panelhead">

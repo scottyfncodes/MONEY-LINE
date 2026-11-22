@@ -4,9 +4,10 @@ import { TIME, fmtMoney } from '../sim/config';
 import { availableCredit, avgDaily, creditLimit } from '../sim/economy';
 import { OBJECTIVES } from '../sim/objectives';
 import { dateLabel } from '../sim/sim';
-import { useUI, type Tool } from '../store';
-import { GameView, theWorld } from './GameView';
-import { SidePanel } from './Panels';
+import type { GameState } from '../sim/types';
+import { isPhone, useUI, type BuildKind, type Tool } from '../store';
+import { GameView, frameOpening, theWorld } from './GameView';
+import { SidePanel, usePhone } from './Panels';
 import './titleArt.js';
 
 const ICONS: Record<Tool, ReactNode> = {
@@ -67,7 +68,7 @@ function ToolRail() {
   return (
     <nav className="rail" aria-label="Tools">
       {TOOLS.map(([id, name, tip]) => (
-        <button type="button" key={id} className={tool === id ? 'on' : ''} onClick={() => { void audio.unlock(); audio.play('click', 0.4); setTool(id); }} aria-pressed={tool === id} title={tip}>
+        <button type="button" key={id} className={tool === id ? 'on' : ''} onClick={() => { void audio.unlock(); audio.play('click', 0.4); const g = useUI.getState().game; if (id === 'rail' && tool !== 'rail' && g && !g.stats.reachedClaim && !g.jobs.length) frameOpening(false, !isPhone()); setTool(id); }} aria-pressed={tool === id} title={tip}>
           <Icon tool={id} /><span>{name}</span>
         </button>
       ))}
@@ -75,14 +76,50 @@ function ToolRail() {
   );
 }
 
+/** The one tap that starts the current objective: the right tool in hand and the right ground in view. */
+function objectiveAction(g: GameState, tool: Tool, buildKind: BuildKind): { label: string; run: () => void } | null {
+  const ui = useUI.getState;
+  const take = (t: Tool, extra: Parameters<ReturnType<typeof ui>['set']>[0] = {}) => { if (ui().tool !== t) ui().setTool(t); ui().set({ panelOpen: t === 'finance' || t === 'works' || t === 'trains' || !isPhone(), ...extra }); };
+  const build = (kind: BuildKind, label: string, at: { x: number; z: number } | undefined) =>
+    tool === 'build' && buildKind === kind ? null : { label, run: () => { take('build', { buildKind: kind }); if (at) theWorld?.focus(at.x, at.z, 38); } };
+  const layTrack = tool === 'rail' ? null : { label: 'Lay the track', run: () => { frameOpening(false, !isPhone()); ui().setTool('rail'); } };
+  const gold = g.deposits.find((d) => d.owned && d.resource === 'gold'), mine = g.mines[0];
+  switch (g.objective) {
+    case 0: return layTrack;
+    case 1: { const j = g.jobs[0]; if (!j) return layTrack; return { label: 'See the railhead', run: () => { const p = j.pts[Math.min(j.pts.length - 1, Math.max(0, j.applied))]; theWorld?.focus(p.x, p.z, 36); } }; }
+    case 2: return build('mine', 'Site the mine', gold);
+    case 3: return build('platform', 'Place the platform', mine ?? gold);
+    case 4: { const t = g.trains[0]; return t ? { label: 'Follow the train', run: () => { theWorld?.followTrain(t.id); ui().set({ selection: { kind: 'train', id: t.id } }); } } : null; }
+    case 5: return g.mills.length ? null : build('mill', 'Site the mill', mine);
+    case 6: return tool === 'finance' ? null : { label: 'Open the books', run: () => take('finance') };
+    case 7: return tool === 'works' ? null : { label: 'See the improvements', run: () => take('works') };
+    case 8: { const r = g.deposits.find((d) => !d.discovered && d.rumor)?.rumor; return tool === 'survey' ? null : { label: 'Take the Survey tool', run: () => { take('survey'); if (r) theWorld?.focus(r.x, r.z, 46); } }; }
+    default: return null;
+  }
+}
+
 function Objectives() {
   const g = useUI((s) => s.game)!;
+  const tool = useUI((s) => s.tool);
+  const buildKind = useUI((s) => s.buildKind);
   useUI((s) => s.rev);
-  // on a phone the valley comes first: the card starts as one line and opens on tap
-  const [open, setOpen] = useState(() => window.innerWidth > 820);
+  const phone = usePhone();
+  const box = useRef<HTMLElement>(null);
+  const [open, setOpen] = useState(true);
+  // On a phone the valley comes first: the card opens to announce each new step and folds to one line once a tool is in hand.
+  useEffect(() => { setOpen(true); }, [g.objective]);
+  useEffect(() => { if (phone && tool !== 'inspect') setOpen(false); }, [phone, tool]);
+  // whatever sits under the card (toasts, the payment plate) keeps clear of it
+  useEffect(() => {
+    const el = box.current; if (!el) return;
+    const sync = () => document.documentElement.style.setProperty('--objh', `${Math.round(el.getBoundingClientRect().height)}px`);
+    const ro = new ResizeObserver(sync); ro.observe(el); sync();
+    return () => ro.disconnect();
+  }, []);
   const cur = OBJECTIVES[g.objective];
+  const act = cur ? objectiveAction(g, tool, buildKind) : null;
   return (
-    <section className={`objectives ${open ? '' : 'shut'}`} aria-label="Objectives">
+    <section ref={box} className={`objectives ${open ? '' : 'shut'}`} aria-label="Objectives">
       <button type="button" className="objhead" onClick={() => setOpen(!open)} aria-expanded={open}>
         <h2>Objectives</h2><span className="objmini">{cur ? cur.title : 'The line is yours'}</span><em>{Math.min(g.objective + 1, OBJECTIVES.length)} of {OBJECTIVES.length}</em>
       </button>
@@ -93,6 +130,7 @@ function Objectives() {
           <p className="why">{cur.why}</p>
           <p className="how">{cur.how}</p>
           {cur.progress?.(g) && <p className="prog">{cur.progress(g)}</p>}
+          {act && <button type="button" className="btn primary act" onClick={() => { void audio.unlock(); audio.play('click', 0.4); act.run(); }}>{act.label}</button>}
           {OBJECTIVES[g.objective + 1] && <p className="next"><i aria-hidden="true">☐</i>{OBJECTIVES[g.objective + 1].title}</p>}
         </div>
       ) : <div className="objbody"><p className="now">The line is yours.</p><p className="why">Every objective is met. The valley is open: deposits run out, markets turn, and there is always another ridge.</p></div>)}
@@ -104,7 +142,11 @@ function Toasts() {
   const toasts = useUI((s) => s.toasts);
   useUI((s) => s.rev);
   const now = performance.now();
-  return <div className="toasts" role="status" aria-live="polite">{toasts.filter((t) => t.until > now).map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}</div>;
+  return <div className="toasts" role="status" aria-live="polite">{toasts.filter((t) => t.until > now).map((t) => (
+    <div key={t.id} className={`toast ${t.kind} ${t.action ? 'act' : ''}`}><span>{t.text}</span>
+      {t.action && <button type="button" onClick={() => { t.action!.run(); useUI.setState((s) => ({ toasts: s.toasts.filter((x) => x.id !== t.id) })); }}>{t.action.label}</button>}
+    </div>
+  ))}</div>;
 }
 
 function Minimap() {
@@ -134,14 +176,14 @@ function HowTo({ onClose }: { onClose: () => void }) {
         <img className="sheetlogo" src="/assets/brand/logo.svg" alt="MONEY LINE" width="346" height="70" />
         <header><h2>How the line pays</h2><button type="button" className="x" onClick={onClose} aria-label="Close">×</button></header>
         <ol className="steps">
-          <li><b>Borrow.</b> Finance → draw on the credit line. Interest is charged every day.</li>
-          <li><b>Lay track.</b> Railroad → click the terminal, then the claim. Drag the markers until the estimate suits you, then sign. Crews build it day by day.</li>
+          <li><b>Draw the line.</b> Railroad → put a finger (or the mouse) on the gold marker at Prosperity and drag to the claim. The price runs beside your hand: flat ground is cheap, rivers and rock are not.</li>
+          <li><b>Borrow and sign.</b> If the contract costs more than you hold, the bank offers the difference on the spot. Interest is charged every day. Crews then build the line day by day.</li>
           <li><b>Open the mine.</b> Build → Mine on the claim, then a Platform on the track beside it. Rough ground has to be graded first.</li>
           <li><b>Haul and sell.</b> Your engine runs the service by itself. Every shipment is sold at the city market at the day's price.</li>
           <li><b>Mill it.</b> A stamp mill turns eight tons of ore into one of concentrate. Then improve the works, and look beyond the ridge.</li>
         </ol>
         <dl className="keys">
-          <dt>Drag</dt><dd>move the view</dd><dt>Right-drag, Q / E</dt><dd>rotate</dd><dt>Wheel</dt><dd>zoom</dd><dt>W A S D</dt><dd>move</dd>
+          <dt>Drag</dt><dd>move the view</dd><dt>Two fingers</dt><dd>zoom and turn</dd><dt>Right-drag, Q / E</dt><dd>rotate</dd><dt>Wheel</dt><dd>zoom</dd><dt>W A S D</dt><dd>move</dd>
           <dt>Space</dt><dd>pause</dd><dt>1 2 3</dt><dd>speed</dd><dt>Esc</dt><dd>put the tool down</dd>
         </dl>
       </div>
@@ -268,10 +310,12 @@ export function App() {
   }, []);
   const help = useUI((s) => s.help);
   const set = useUI((s) => s.set);
+  const drawing = useUI((s) => s.drawing);
+  const tool = useUI((s) => s.tool);
   return (
     <Boundary>
       {screen === 'title' ? <Title /> : (
-        <div className="game">
+        <div className={`game ${drawing ? 'drawing' : ''} ${tool === 'rail' ? 'laying' : ''}`}>
           <GameView />
           <TopBar /><Menu /><ToolRail /><Objectives /><SidePanel /><Minimap /><Toasts /><Receivership />
           {help && <HowTo onClose={() => set({ help: false })} />}

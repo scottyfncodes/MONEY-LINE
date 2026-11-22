@@ -55,16 +55,19 @@ for (let i = 0; i < 7; i++) await page.getByRole('button', { name: 'More', exact
 await page.getByRole('button', { name: /^Borrow \$45,000/ }).click();
 s = await state();
 ok(s.debt === 45000 && s.cash === 63000, 'borrowing $45,000 raises cash and debt together');
-await page.waitForFunction(() => window.__ml.state.objective >= 1, null, { timeout: 5000 });
-ok(true, 'objective "Raise the capital" is met');
 
 console.log('4. Build a railroad to the deposit');
 await tool('Railroad');
-const node = await S(() => { const n = window.__ml.state.nodes[0]; return { x: n.x, z: n.z }; });
-await clickGround(node.x, node.z, 40);
-await clickGround(gold.x - 3, gold.z + 4, 70);
+await page.waitForTimeout(3000); // the view glides to show the terminal and the claim together
+ok(await page.getByText('Drag from here').isVisible(), 'the terminal is marked as the place to draw from');
+// draw the line by hand: press on the terminal and drag across the valley to the claim
+const stroke = await S(([gx, gz]) => { const n = window.__ml.state.nodes[0]; return [[n.x, n.z], [45, 91], [64, 83], [gx - 3, gz + 4]].map(([x, z]) => window.__ml.screenOf(x, z)); }, [gold.x, gold.z]);
+await page.mouse.move(stroke[0].x, stroke[0].y); await page.mouse.down();
+for (const p of stroke.slice(1)) await page.mouse.move(p.x, p.y, { steps: 12 });
+ok(await S(() => window.__ml.ui.getState().drawing), 'the line follows the pointer while it is held');
+await page.mouse.up(); await page.waitForTimeout(300);
 await page.getByText("The engineer's estimate").waitFor();
-ok(await page.getByText('Buildable', { exact: true }).isVisible(), 'the surveyor proposes a buildable route with an itemised estimate');
+ok(await page.getByText('Buildable', { exact: true }).isVisible(), 'the drawn line is a buildable route with an itemised estimate');
 await S(() => { const w = window.__ml.world; w.cam.x = 60; w.cam.z = 80; w.cam.dist = 120; });
 await page.waitForTimeout(500);
 await shot('route-estimate');
@@ -72,6 +75,8 @@ const before = (await state()).cash;
 await page.getByRole('button', { name: /^Sign the contract/ }).click();
 s = await state();
 ok(s.jobs === 1 && s.cash < before, `the contract costs $${Math.round(before - s.cash).toLocaleString()} and the crews start`);
+await page.waitForFunction(() => window.__ml.state.objective >= 1, null, { timeout: 5000 });
+ok(true, 'objective "Sign for a line to the Eureka claim" is met');
 await days(8); await page.waitForTimeout(700);
 await shot('railhead');
 ok((await state()).edges === 0, 'the line is not open until the crews finish it');

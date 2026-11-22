@@ -65,6 +65,14 @@ function radius3(a: XZ, b: XZ, c: XZ): number {
   return area2 < 1e-6 ? Infinity : (ab * bc * ca) / (2 * area2);
 }
 
+/** Tightest curve along an evenly sampled path, measured over a two-cell chord so sampling noise does not read as a kink. */
+export function tightestRadius(path: XZ[], step: number = TRACK.sampleStep): number {
+  let min = Infinity;
+  const span = Math.max(1, Math.round(2 / step));
+  for (let i = span; i < path.length - span; i++) min = Math.min(min, radius3(path[i - span], path[i], path[i + span]));
+  return min;
+}
+
 export function cumulative(pts: XZ[]): number[] {
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
@@ -92,10 +100,7 @@ export function planRoute(s: GameState, way: XZ[], opt: RouteOptions = DEFAULT_R
   const length = cum[n - 1];
   const step = length / (n - 1);
 
-  // curvature, measured over a two-cell chord so sampling noise does not read as a kink
-  let minRadius = Infinity;
-  const span = Math.max(1, Math.round(2 / step));
-  for (let i = span; i < n - span; i++) minRadius = Math.min(minRadius, radius3(path[i - span], path[i], path[i + span]));
+  const minRadius = tightestRadius(path, step);
   if (minRadius < TRACK.minRadius) errors.push(`Curve too sharp (radius ${minRadius.toFixed(1)} cells, minimum ${TRACK.minRadius}). Spread the waypoints out.`);
 
   // ground and water under the line

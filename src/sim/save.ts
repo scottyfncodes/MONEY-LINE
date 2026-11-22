@@ -1,7 +1,7 @@
 import { recomputeLocks } from './terrain';
 import type { GameState } from './types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 const TYPED = ['height', 'soil', 'baseHeight', 'forest', 'water', 'waterLevel'] as const;
 
 export interface SaveFile { version: number; savedAt: number; summary: { day: number; cash: number; debt: number; seed: number }; state: Record<string, unknown> }
@@ -38,10 +38,15 @@ export function fromSave(file: SaveFile): GameState {
   return st;
 }
 
-/** Schema migrations, oldest first. Version 1 is the first public schema. */
+/** Schema migrations, oldest first. Version 1 was the first public schema. */
 function migrate(state: Record<string, unknown>, from: number): Record<string, unknown> {
   let v = from;
-  while (v < SAVE_VERSION) { v++; }
+  while (v < SAVE_VERSION) {
+    // 1 → 2: the guided path opens with the line itself (borrowing happens at the contract), so a venture that had only
+    // been to the bank goes back to the first step; the simulation moves it on if a contract is already signed.
+    if (v === 1 && state.objective === 1) state.objective = 0;
+    v++;
+  }
   state.version = SAVE_VERSION;
   return state;
 }

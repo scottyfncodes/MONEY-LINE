@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react';
 import { audio } from '../audio/audio';
 import { World } from '../render/world';
 import { suggestRoute } from '../sim/autoroute';
-import { MILL, MINE, STATION, SURVEY, TIME, fmtMoney } from '../sim/config';
+import { MILL, MINE, STATION, SURVEY, TIME, TRACK, fmtMoney } from '../sim/config';
 import { millSite, mineSite } from '../sim/facilities';
 import { findSnap } from '../sim/rail';
 import { tick } from '../sim/sim';
-import { heightAt, planTerrainOp } from '../sim/terrain';
+import { extendWay, strokeToWay } from '../sim/stroke';
+import { heightAt, isWater, planTerrainOp } from '../sim/terrain';
 import type { GameState } from '../sim/types';
-import { useUI, type Selection } from '../store';
+import { isPhone, useUI, type Selection } from '../store';
 
 const TONE = { excavate: 0xe0a34a, fill: 0x8fbf6a, grade: 0xf4ecd8, blast: 0xd9614e, clear: 0xb7d08a } as const;
 
@@ -42,10 +43,63 @@ export function selectionPoint(g: GameState, world: World | null, sel: Selection
 
 export let theWorld: World | null = null;
 
+type XZ = { x: number; z: number };
+/** How close to the lode a line has to end for the claim to count as reached (the gold ring on the ground). */
+export const CLAIM_RING = 6.5;
+export const ownClaim = (g: GameState) => g.deposits.find((d) => d.owned && d.resource === 'gold') ?? null;
+/** Where a new line may be drawn from: the terminal, and every loose end of the track. */
+export function lineStarts(g: GameState): XZ[] {
+  const ends = g.nodes.filter((n) => n.id !== g.city.node && g.edges.filter((e) => e.a === n.id || e.b === n.id).length === 1);
+  const city = g.nodes.find((n) => n.id === g.city.node);
+  return [...(city ? [city] : []), ...ends].slice(0, 6).map((n) => ({ x: n.x, z: n.z }));
+}
+/** What the engineer's refusal comes to, in the few words that fit beside a fingertip. */
+export function briefError(e: string): string {
+  if (e.startsWith('Too steep')) return 'Too steep: swing wider to climb';
+  if (e.startsWith('Curve too sharp')) return 'Curve too sharp';
+  if (e.startsWith('Too short')) return 'Keep going';
+  if (e.startsWith('The grade line dips')) return 'Too low over the river';
+  if (e.startsWith('The line runs through')) return 'Go around the works';
+  if (e.startsWith('The line leaves')) return 'Off the map';
+  if (e.startsWith('Both track gangs')) return 'Both gangs are busy';
+  return e.split('. ')[0];
+}
+
+/** The margins the interface takes from the view, so framing puts things where they can be seen and touched. */
+function clearInsets(panel: boolean, tool: boolean) {
+  const bar = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 64;
+  if (isPhone()) {
+    // with a map tool in hand the objective folds to one line and the tool's strip sits above the tool bar
+    const card = tool ? bar + 58 : document.querySelector('.objectives')?.getBoundingClientRect().bottom ?? bar + 58;
+    return { top: card + (tool ? 56 : 26), right: 40, bottom: 57 + (tool ? 184 : 18), left: 40 };
+  }
+  return { top: bar + 80, right: (panel ? 372 + 16 : 0) + 80, bottom: 80, left: 76 + 32 + 70 };
+}
+/** Show the ground the first line has to cross: the terminal at the near edge, the claim at the far one. */
+export function frameOpening(instant = false, panel = false, tool = true) {
+  const w = theWorld, g = useUI.getState().game; if (!w || !g) return;
+  const gold = ownClaim(g) ?? g.deposits[0], n = g.nodes.find((x) => x.id === g.city.node) ?? g.city;
+  const c = document.querySelector('canvas.world') as HTMLCanvasElement | null;
+  // on an upright screen the valley is turned so the line runs away from the player: a stroke straight up the glass
+  const upright = !!c && c.clientWidth / c.clientHeight < 0.8;
+  const yaw = upright ? Math.atan2(-(gold.x - n.x), -(gold.z - n.z)) : w.cam.yaw;
+  const ring = [0, 1, 2, 3].map((k) => ({ x: gold.x + Math.cos(k * 1.5708) * CLAIM_RING, z: gold.z + Math.sin(k * 1.5708) * CLAIM_RING }));
+  // and looked at more from above, as a map is, so a finger lands where it means to
+  // with no tool in hand it is enough to see both ends; with one, the whole ring has to be within reach
+  w.fit(tool ? [n, { x: g.city.x, z: g.city.z }, ...ring] : [n, gold], clearInsets(panel, tool), yaw, instant, upright ? 0.92 : w.cam.pitch);
+}
+/** Open on what the company owns. Before the claim is reached that is the crossing; afterwards, the whole line. */
+export function frameVenture(instant = false) {
+  const w = theWorld, g = useUI.getState().game; if (!w || !g) return;
+  if (!g.stats.reachedClaim) return frameOpening(instant, false, false);
+  w.fit([{ x: g.city.x, z: g.city.z }, ...g.nodes, ...g.mines, ...g.jobs.map((j) => j.pts[j.pts.length - 1])], clearInsets(false, false), w.cam.yaw, instant);
+}
+
 export function GameView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
+  const handlesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -53,7 +107,9 @@ export function GameView() {
     const world = new World(canvas, ui().game!);
     theWorld = world;
     let game = ui().game!;
-    let raf = 0, last = performance.now(), acc = 0, lastBump = 0, lastSave = performance.now(), labelKey = '';
+    frameVenture(true);
+    let raf = 0, last = performance.now(), acc = 0, lastBump = 0, lastSave = performance.now(), labelKey = '', handleKey = '';
+    const handles: Array<{ el: HTMLDivElement; x: number; z: number }> = [];
     const keys = new Set<string>();
     let hover: { x: number; z: number } | null = null;
     let gradeTarget: number | null = null;
@@ -70,6 +126,25 @@ export function GameView() {
       for (const d of game.deposits) {
         if (d.discovered) add('d' + d.id, d.name, `deposit ${d.resource}${d.owned ? ' owned' : ''}`, d.x, d.z, 2.3);
         else if (d.rumor) add('r' + d.id, 'Rumoured silver', 'rumour', d.rumor.x, d.rumor.z, 1.5);
+      }
+    };
+
+    /** The grips a line is drawn from, as marks on the map: where to start, and where to carry on. */
+    const rebuildHandles = () => {
+      const host = handlesRef.current!; host.innerHTML = ''; handles.length = 0;
+      const st = ui(); if (st.tool !== 'rail' || st.lifting || st.drawing) return;
+      const add = (cls: string, p: XZ, text: string | null) => {
+        const el = document.createElement('div'); el.className = `grip ${cls}`;
+        el.appendChild(document.createElement('i'));
+        if (text) { const b = document.createElement('b'); b.textContent = text; el.appendChild(b); }
+        host.appendChild(el); handles.push({ el, x: p.x, z: p.z });
+      };
+      if (st.way.length === 0) lineStarts(game).forEach((p, i) => add('start', p, i === 0 && game.edges.length === 0 ? 'Drag from here' : null));
+      else if (st.way.length === 1) add('start', st.way[0], 'Drag from here');
+      else {
+        const end = st.way[st.way.length - 1], gold = ownClaim(game);
+        const short = !game.stats.reachedClaim && !!gold && !st.line?.end && Math.hypot(end.x - gold.x, end.z - gold.z) > CLAIM_RING;
+        add('end', end, short ? 'Drag on from here' : null);
       }
     };
 
@@ -102,7 +177,7 @@ export function GameView() {
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const st = ui();
-      if (st.game && st.game !== game) { game = st.game; world.setState(game); labelKey = ''; lastNote = game.notes.length ? game.notes[game.notes.length - 1].id : 0; }
+      if (st.game && st.game !== game) { game = st.game; world.setState(game); labelKey = ''; handleKey = ''; lastNote = game.notes.length ? game.notes[game.notes.length - 1].id : 0; frameVenture(true); }
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       const mul = game.finance.receivership ? 0 : TIME.speeds[st.speed];
       acc += (dt * mul * TIME.ticksPerDay) / TIME.secondsPerDay;
@@ -123,6 +198,7 @@ export function GameView() {
         route: st.tool === 'rail' && st.line && st.way.length >= 2 ? { pts: st.line.plan.pts, valid: !st.line.error, way: st.way } : st.tool === 'rail' && st.way.length === 1 ? { pts: [], valid: true, way: st.way } : null,
         brush: st.tool === 'terrain' && hover ? { x: hover.x, z: hover.z, radius: st.brush, color: TONE[st.terrainTool] } : null,
         ghost: st.tool === 'build' && hover && st.buildKind !== 'platform' ? { x: Math.round(hover.x), z: Math.round(hover.z), half: 1.5, ok: (st.buildKind === 'mine' ? mineSite(game, Math.round(hover.x), Math.round(hover.z)).error : millSite(game, Math.round(hover.x), Math.round(hover.z)).error) == null } : null,
+        target: st.tool === 'rail' && !st.lifting && !game.stats.reachedClaim && ownClaim(game) ? { x: ownClaim(game)!.x, z: ownClaim(game)!.z, r: CLAIM_RING } : null,
         ring: st.tool === 'survey' && hover ? { x: hover.x, z: hover.z, r: SURVEY.prospectRadius, color: 0xf0c84a } : st.tool === 'build' && st.buildKind === 'platform' && hover ? { x: hover.x, z: hover.z, r: STATION.serviceRadius, color: 0xf4ecd8 } : null,
         select: sel,
       });
@@ -140,6 +216,14 @@ export function GameView() {
         l.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
         l.el.style.opacity = p.visible && !(far && l.el.classList.contains('station')) ? '1' : '0';
       }
+      const end = st.way[st.way.length - 1];
+      const hk = st.tool !== 'rail' || st.lifting ? '' : `${st.way.length}|${st.drawing}|${game.rev.track}|${game.edges.length}|${end ? `${end.x},${end.z}` : ''}|${st.line?.end ? 1 : 0}|${game.stats.reachedClaim}`;
+      if (hk !== handleKey) { handleKey = hk; rebuildHandles(); }
+      for (const h of handles) {
+        const p = world.project(h.x, h.z, 0.3);
+        h.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+        h.el.style.opacity = p.visible ? '1' : '0';
+      }
       if (now - lastBump > 240) { lastBump = now; st.bump(); }
       if (now - lastSave > 20000) { lastSave = now; void st.save(); }
     };
@@ -147,14 +231,56 @@ export function GameView() {
 
     // ── pointer input ──
     const ptrs = new Map<number, { x: number; y: number }>();
-    let down: { x: number; y: number; button: number; moved: boolean; way: number; paint: boolean; lastPaint: number } | null = null;
+    interface Press {
+      x: number; y: number; button: number; moved: boolean; touch: boolean; lastPaint: number;
+      /** index of the waypoint being dragged, or −1 */
+      way: number; kept: boolean; paint: boolean;
+      /** a line is being drawn: the waypoints it grows from, the line as it was, and the stroke so far */
+      draw: XZ[] | null; before: XZ[]; undo: XZ[][]; stroke: XZ[]; atClaim: boolean;
+    }
+    let down: Press | null = null;
     let pinch = 0, pinchAngle = 0;
 
     const setChip = (text: string | null, tone: 'ok' | 'bad' | 'info' = 'info') => {
       const el = chipRef.current!; if (!text) { el.style.opacity = '0'; return; }
       el.textContent = text; el.dataset.tone = tone; el.style.opacity = '1';
     };
-    const moveChip = (x: number, y: number) => { const r = canvas.getBoundingClientRect(); chipRef.current!.style.transform = `translate(${x - r.left + 18}px, ${y - r.top + 18}px)`; };
+    /** Beside the mouse pointer; above a fingertip, where the hand does not hide it. */
+    const moveChip = (x: number, y: number, touch = false) => {
+      const r = canvas.getBoundingClientRect(), el = chipRef.current!;
+      el.style.transform = touch
+        ? `translate(${Math.max(96, Math.min(r.width - 96, x - r.left))}px, ${Math.max(150, y - r.top - 58)}px) translate(-50%, -100%)`
+        : `translate(${x - r.left + 18}px, ${y - r.top + 18}px)`;
+    };
+    const grabPx = (touch: boolean) => (touch ? 34 : 18);
+    const nearPx = (p: XZ, x: number, y: number, r: number) => { const rc = canvas.getBoundingClientRect(), q = world.project(p.x, p.z, 0.3); return Math.hypot(q.x - (x - rc.left), q.y - (y - rc.top)) < r; };
+    /** Track within a fingertip of a point on the ground, however far the view is pulled back. */
+    const snapNear = (hit: XZ, touch: boolean) => findSnap(game, hit.x, hit.z, Math.max(TRACK.snapRadius, world.cellsPerPx() * grabPx(touch)));
+
+    /** If a press lands where a line can be drawn from, the waypoints that line will grow from. */
+    const drawBase = (x: number, y: number, touch: boolean): XZ[] | null => {
+      const st = ui(); if (st.tool !== 'rail' || st.lifting) return null;
+      if (st.way.length >= 1) return nearPx(st.way[st.way.length - 1], x, y, grabPx(touch)) ? st.way : null;
+      const hit = world.pick(x, y); if (!hit) return null;
+      const snap = snapNear(hit, touch);
+      return snap ? [{ x: snap.x, z: snap.z }] : null;
+    };
+    const layStroke = (d: Press) => {
+      const way = d.draw!.length >= 2 ? extendWay(d.draw!, d.stroke) : strokeToWay([d.draw![0], ...d.stroke]);
+      if (way.length >= 2) ui().setWay(way);
+    };
+    /** While a line is being drawn the price runs beside the hand, and says when the claim is reached. */
+    const drawChip = (d: Press, x: number, y: number) => {
+      const st = ui(), line = st.line, gold = ownClaim(game), end = st.way[st.way.length - 1];
+      moveChip(x, y, d.touch);
+      if (!line || !end) return setChip('Keep going', 'info');
+      const at = !game.stats.reachedClaim && !!gold && Math.hypot(end.x - gold.x, end.z - gold.z) <= CLAIM_RING;
+      if (at && !d.atClaim) { try { navigator.vibrate?.(12); } catch { /* no haptics */ } audio.play('click', 0.35, 1.4); }
+      d.atClaim = at;
+      if (isWater(game, end.x, end.z)) setChip('Carry on across the river', 'info');
+      else if (line.error) setChip(briefError(line.error), 'bad');
+      else setChip(`${at ? 'At the claim · ' : ''}${fmtMoney(line.plan.total)}`, 'ok');
+    };
 
     const updateHover = (x: number, y: number) => {
       const st = ui();
@@ -170,8 +296,9 @@ export function GameView() {
         else { const site = st.buildKind === 'mine' ? mineSite(game, Math.round(hover.x), Math.round(hover.z)) : millSite(game, Math.round(hover.x), Math.round(hover.z)); setChip(site.error ?? `${st.buildKind === 'mine' ? 'Mine' : 'Stamp mill'} · ${fmtMoney(st.buildKind === 'mine' ? MINE.cost : MILL.cost)}`, site.error ? 'bad' : 'ok'); }
       } else if (st.tool === 'survey') setChip(`Prospect this ground · ${fmtMoney(SURVEY.prospectCost)}`, 'info');
       else if (st.tool === 'rail' && !st.lifting) {
-        if (st.way.length === 0) { const snap = findSnap(game, hover.x, hover.z); setChip(snap ? 'Start the line here' : 'Start on existing track or the terminal', snap ? 'ok' : 'bad'); }
-        else if (st.way.length === 1) setChip('Click the destination', 'info');
+        if (st.way.length === 0) { const snap = snapNear(hover, false); setChip(snap ? 'Press and drag to draw the line' : 'Lines start from the terminal or existing track', snap ? 'ok' : 'info'); }
+        else if (drawBase(x, y, false)) setChip(st.way.length === 1 ? 'Press and drag to draw the line' : 'Drag to carry the line on', 'ok');
+        else if (st.way.length === 1) setChip('Or click where the line should end', 'info');
         else setChip(null);
       } else if (st.tool === 'rail' && st.lifting) setChip('Click a line to lift it', 'bad');
       else setChip(null);
@@ -184,7 +311,7 @@ export function GameView() {
       if (!r.ok && down && !down.moved) st.toast('bad', r.error ?? '');
     };
 
-    const click = (x: number, y: number) => {
+    const click = (x: number, y: number, touch: boolean) => {
       const st = ui(); const hit = world.pick(x, y); if (!hit) return;
       void audio.unlock();
       if (st.tool === 'survey') { st.run({ type: 'prospect', x: hit.x, z: hit.z }); return; }
@@ -194,17 +321,19 @@ export function GameView() {
         return;
       }
       if (st.tool === 'rail') {
-        if (st.lifting) { const e = pickEntity(game, world, hit); if (e.kind === 'edge') { st.run({ type: 'demolish', edge: e.id }); } else st.toast('info', 'Click directly on a finished line to lift it.'); return; }
+        if (st.lifting) { const e = pickEntity(game, world, hit); if (e.kind === 'edge') { st.run({ type: 'demolish', edge: e.id }); } else st.toast('info', 'Tap directly on a finished line to lift it.'); return; }
         if (st.way.length === 0) {
-          const snap = findSnap(game, hit.x, hit.z);
-          if (!snap) return st.toast('bad', 'Start the line on existing track or at the city terminal.');
-          st.setWay([{ x: snap.x, z: snap.z }]); audio.play('click', 0.4); return;
+          // a press on track is caught earlier and starts a line; this ground has none
+          st.toast('info', game.edges.length ? 'A line starts from track you already have. Drag from a gold marker.' : 'The line starts at Prosperity. Drag from the gold marker.');
+          const s0 = lineStarts(game)[0]; if (s0 && !world.project(s0.x, s0.z).visible) world.focus(s0.x, s0.z);
+          return;
         }
         if (st.way.length === 1) {
-          const end = findSnap(game, hit.x, hit.z);
+          // one tap for the far end: the surveyor finds the way between
+          const end = snapNear(hit, touch);
           const to = end ? { x: end.x, z: end.z } : hit;
           const way = suggestRoute(game, st.way[0], to) ?? [st.way[0], to];
-          st.setWay(way); audio.play('click', 0.4); return;
+          st.keepWay(); st.setWay(way); audio.play('click', 0.4); return;
         }
         // add a waypoint where it bends the existing line least
         let bi = 1, bd = Infinity;
@@ -213,7 +342,7 @@ export function GameView() {
           const extra = Math.hypot(hit.x - a.x, hit.z - a.z) + Math.hypot(b.x - hit.x, b.z - hit.z) - Math.hypot(b.x - a.x, b.z - a.z);
           if (extra < bd) { bd = extra; bi = i; }
         }
-        const way = st.way.slice(); way.splice(bi, 0, hit); st.setWay(way); audio.play('click', 0.4);
+        const way = st.way.slice(); way.splice(bi, 0, hit); st.keepWay(); st.setWay(way); audio.play('click', 0.4);
         return;
       }
       if (st.tool === 'terrain') return;
@@ -222,21 +351,32 @@ export function GameView() {
       audio.play('click', 0.3);
     };
 
-    const waypointAt = (x: number, y: number): number => {
+    /** A marker in the middle of the line, which can be dragged to bend it. The far end is for drawing on. */
+    const waypointAt = (x: number, y: number, touch: boolean): number => {
       const st = ui(); if (st.tool !== 'rail' || st.way.length < 2) return -1;
-      const r = canvas.getBoundingClientRect();
-      for (let i = 0; i < st.way.length; i++) { const p = world.project(st.way[i].x, st.way[i].z, 0.3); if (Math.hypot(p.x - (x - r.left), p.y - (y - r.top)) < 16) return i; }
+      for (let i = 0; i < st.way.length - 1; i++) if (nearPx(st.way[i], x, y, touch ? 28 : 16)) return i;
       return -1;
+    };
+    const stopDrawing = (keep: boolean) => {
+      const d = down; if (!d?.draw) return;
+      const st = ui();
+      if (st.drawing) {
+        if (keep) st.set({ drawing: false, wayUndo: [...d.undo.slice(-19), d.before] });
+        else { st.setWay(d.before); st.set({ drawing: false, wayUndo: d.undo }); }
+      }
+      if (d.touch) setChip(null);
     };
 
     const onDown = (e: PointerEvent) => {
       canvas.setPointerCapture(e.pointerId);
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); pinchAngle = Math.atan2(b.y - a.y, b.x - a.x); down = null; return; }
-      const st = ui();
-      const way = e.button === 0 ? waypointAt(e.clientX, e.clientY) : -1;
-      const paintMode = e.button === 0 && st.tool === 'terrain' && e.pointerType === 'mouse' && !keys.has(' ');
-      down = { x: e.clientX, y: e.clientY, button: e.button, moved: false, way, paint: paintMode, lastPaint: 0 };
+      // a second finger means the player wants to move the view: whatever the first one was drawing is put back
+      if (ptrs.size === 2) { stopDrawing(false); const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); pinchAngle = Math.atan2(b.y - a.y, b.x - a.x); down = null; return; }
+      const st = ui(), touch = e.pointerType !== 'mouse';
+      const draw = e.button === 0 && !keys.has(' ') ? drawBase(e.clientX, e.clientY, touch) : null;
+      const way = e.button === 0 && !draw ? waypointAt(e.clientX, e.clientY, touch) : -1;
+      const paintMode = e.button === 0 && st.tool === 'terrain' && !touch && !keys.has(' ');
+      down = { x: e.clientX, y: e.clientY, button: e.button, moved: false, touch, way, kept: false, paint: paintMode, lastPaint: 0, draw, before: st.way, undo: st.wayUndo, stroke: [], atClaim: false };
       gradeTarget = null;
       if (paintMode) { void audio.unlock(); paint(e.clientX, e.clientY); down.lastPaint = performance.now(); }
     };
@@ -253,11 +393,20 @@ export function GameView() {
       }
       if (!down) { if (e.pointerType === 'mouse') updateHover(e.clientX, e.clientY); return; }
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
-      if (!down.moved && Math.hypot(dx, dy) > 5) down.moved = true;
+      if (!down.moved && Math.hypot(dx, dy) > (down.touch ? 8 : 5)) down.moved = true;
       if (!down.moved) return;
+      if (down.draw) {
+        const st = ui();
+        if (!st.drawing) { void audio.unlock(); st.set({ drawing: true }); }
+        const hit = world.pick(e.clientX, e.clientY), tip = down.stroke[down.stroke.length - 1];
+        if (hit && (!tip || Math.hypot(hit.x - tip.x, hit.z - tip.z) > 0.35)) down.stroke.push(hit);
+        if (performance.now() - down.lastPaint > 50) { down.lastPaint = performance.now(); layStroke(down); }
+        drawChip(down, e.clientX, e.clientY);
+        return;
+      }
       if (down.way >= 0) {
         const hit = world.pick(e.clientX, e.clientY); const st = ui();
-        if (hit && performance.now() - down.lastPaint > 45) { down.lastPaint = performance.now(); const way = st.way.slice(); way[down.way] = hit; st.setWay(way); }
+        if (hit && performance.now() - down.lastPaint > 45) { if (!down.kept) { down.kept = true; st.keepWay(); } down.lastPaint = performance.now(); const way = st.way.slice(); way[down.way] = hit; st.setWay(way); }
         return;
       }
       if (down.paint) { if (performance.now() - down.lastPaint > 110) { down.lastPaint = performance.now(); paint(e.clientX, e.clientY); } updateHover(e.clientX, e.clientY); return; }
@@ -268,17 +417,32 @@ export function GameView() {
     const onUp = (e: PointerEvent) => {
       ptrs.delete(e.pointerId);
       if (!down) return;
-      const d = down; down = null;
-      if (d.way >= 0 && d.moved) { const hit = world.pick(e.clientX, e.clientY); const st = ui(); if (hit) { const way = st.way.slice(); const snap = (d.way === 0 || d.way === way.length - 1) ? findSnap(game, hit.x, hit.z) : null; way[d.way] = snap ? { x: snap.x, z: snap.z } : hit; st.setWay(way); } return; }
+      const d = down;
+      if (d.draw) {
+        const st = ui();
+        if (d.moved && e.type !== 'pointercancel') {
+          const from = d.draw[d.draw.length - 1], tip = d.stroke[d.stroke.length - 1];
+          const far = !!tip && Math.hypot(tip.x - from.x, tip.z - from.z) > 2.5;
+          if (far) layStroke(d);
+          if (far && ui().way.length >= 2) { stopDrawing(true); audio.play('click', 0.45); try { navigator.vibrate?.(8); } catch { /* no haptics */ } }
+          else { stopDrawing(false); if (!d.before.length) { st.setWay([d.draw[0]]); } }
+        } else if (d.moved) stopDrawing(false);
+        else if (!d.before.length) { void audio.unlock(); st.setWay([d.draw[0]]); audio.play('click', 0.4); }
+        down = null;
+        if (d.touch) setChip(null);
+        return;
+      }
+      down = null;
+      if (d.way >= 0 && d.moved) { const hit = world.pick(e.clientX, e.clientY); const st = ui(); if (hit) { const way = st.way.slice(); const snap = d.way === 0 ? findSnap(game, hit.x, hit.z) : null; way[d.way] = snap ? { x: snap.x, z: snap.z } : hit; st.setWay(way); } return; }
       if (d.paint) { ui().bump(); return; }
-      if (!d.moved && d.button === 0) {
+      if (!d.moved && d.button === 0 && e.type !== 'pointercancel') {
         if (ui().tool === 'terrain') { void audio.unlock(); paint(e.clientX, e.clientY); return; }
-        click(e.clientX, e.clientY);
+        click(e.clientX, e.clientY, d.touch);
       }
     };
     const onDbl = (e: MouseEvent) => {
-      const i = waypointAt(e.clientX, e.clientY); const st = ui();
-      if (i > 0 && i < st.way.length - 1) { const way = st.way.slice(); way.splice(i, 1); st.setWay(way); }
+      const i = waypointAt(e.clientX, e.clientY, false); const st = ui();
+      if (i > 0 && i < st.way.length - 1) { const way = st.way.slice(); way.splice(i, 1); st.keepWay(); st.setWay(way); }
     };
     const onWheel = (e: WheelEvent) => { e.preventDefault(); world.zoom(Math.exp(e.deltaY * 0.0011)); };
     const onKey = (e: KeyboardEvent) => {
@@ -287,7 +451,7 @@ export function GameView() {
       if (e.type === 'keydown') {
         keys.add(k);
         const st = ui();
-        if (k === 'escape') { if (st.way.length) st.setWay([]); else st.setTool('inspect'); st.set({ selection: null, panelOpen: false, menu: false, help: false }); }
+        if (k === 'escape') { if (st.way.length) { st.setWay([]); st.set({ drawing: false }); down = null; } else st.setTool('inspect'); st.set({ selection: null, panelOpen: false, menu: false, help: false }); }
         if (k === ' ') { e.preventDefault(); st.set({ speed: st.speed === 0 ? 1 : 0 }); }
         if (k === '1' || k === '2' || k === '3') st.set({ speed: Number(k) });
       } else keys.delete(k);
@@ -350,6 +514,7 @@ export function GameView() {
     <div className="stage">
       <canvas ref={canvasRef} className="world" aria-label="The valley: terrain, railroad and works" />
       <div ref={labelsRef} className="maplabels" aria-hidden="true" />
+      <div ref={handlesRef} className="handles" aria-hidden="true" />
       <div ref={chipRef} className="chip" aria-hidden="true" />
     </div>
   );
