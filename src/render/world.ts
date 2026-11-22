@@ -27,7 +27,7 @@ interface TrainView { group: THREE.Group; loco: THREE.Group; wagons: THREE.Group
 /** Soft round particles for smoke, steam and dust. */
 class Puffs {
   points: THREE.Points;
-  private max = 700; private n = 0;
+  private max = 700; private n = 0; private frames = 32;
   private pos = new Float32Array(this.max * 3); private vel = new Float32Array(this.max * 3);
   private age = new Float32Array(this.max); private life = new Float32Array(this.max);
   private size = new Float32Array(this.max); private grow = new Float32Array(this.max);
@@ -42,18 +42,21 @@ class Puffs {
     geo.setAttribute('aFrame', new THREE.BufferAttribute(this.aFrame, 1));
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, vertexColors: true,
-      uniforms: { uScale: { value: 600 }, uMap: { value: null }, uHasMap: { value: 0 } },
+      uniforms: { uScale: { value: 600 }, uMap: { value: null }, uHasMap: { value: 0 }, uCols: { value: 6 } },
       vertexShader: `attribute float aSize; attribute float aAlpha; attribute float aFrame; varying float vA; varying vec3 vC; varying float vF; uniform float uScale;
         void main(){ vA=aAlpha; vC=color; vF=aFrame; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uScale/(-mv.z); gl_Position=projectionMatrix*mv; }`,
       // the puff's shape comes from the produced smoke flipbook (6×6 frames); a soft disc stands in until it loads
-      fragmentShader: `varying float vA; varying vec3 vC; varying float vF; uniform sampler2D uMap; uniform float uHasMap;
+      fragmentShader: `varying float vA; varying vec3 vC; varying float vF; uniform sampler2D uMap; uniform float uHasMap; uniform float uCols;
         void main(){ vec2 d=gl_PointCoord-0.5; float r=length(d)*2.0; float disc=smoothstep(1.0,0.25,r);
-          float f=floor(vF+0.5); vec2 cell=vec2(mod(f,6.0),floor(f/6.0)); vec2 uv=(cell+0.5+d*0.6)/6.0;
+          float f=floor(vF+0.5); vec2 cell=vec2(mod(f,uCols),floor(f/uCols)); vec2 uv=(cell+0.5+d*0.6)/uCols;
           float shape=mix(disc, max(texture2D(uMap,uv).a, disc*0.55), uHasMap);
           float a=shape*vA; if(a<0.01) discard;
           float lit=0.82+0.18*smoothstep(0.6,-0.6,d.y); gl_FragColor=vec4(vC*lit,a); }`,
     });
     new THREE.TextureLoader().load('/assets/fx/smoke_flipbook.png', (tex) => { tex.flipY = false; tex.needsUpdate = true; mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; }, undefined, () => { /* the disc remains */ });
+    // grid and frame count come from the flipbook's own metadata
+    fetch('/assets/fx/smoke_flipbook.json').then((r) => r.json()).then((m: { cols?: number }) => { if (m.cols) mat.uniforms.uCols.value = m.cols; }).catch(() => { /* defaults stand */ });
+    fetch('/assets/fx/smoke_atlas.json').then((r) => r.json()).then((a: { frames?: Record<string, unknown> }) => { if (a.frames) this.frames = Object.keys(a.frames).length; }).catch(() => { /* defaults stand */ });
     this.points = new THREE.Points(geo, mat);
     this.points.frustumCulled = false;
     geo.setDrawRange(0, 0);
@@ -82,7 +85,7 @@ class Puffs {
       this.pos[i * 3] += (this.vel[i * 3] + 0.12) * dt; this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt; this.pos[i * 3 + 2] += (this.vel[i * 3 + 2] + 0.05) * dt;
       this.vel[i * 3 + 1] *= 1 - 0.5 * dt;
       this.aSize[i] = this.size[i] + this.grow[i] * t;
-      this.aFrame[i] = Math.min(31, Math.floor(t * 32));
+      this.aFrame[i] = Math.min(this.frames - 1, Math.floor(t * this.frames));
       this.aAlpha[i] = this.alpha[i] * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
     }
     const g = this.points.geometry;
