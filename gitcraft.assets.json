@@ -53,6 +53,84 @@
    "role": "sfx",
    "sha256": "0775d8aa5200aaac9940ee7f02483248bfebe675d0a98b04278679ce93e7f38f",
    "task": "audio.sfx.whoosh"
+  },
+  "assets/brand/logo.svg": {
+   "format": "svg",
+   "role": "logo",
+   "sha256": "c75eb47b0682f35ad7872e589f36fa5f68162c89c23fe0142c0c62463397dbfc",
+   "task": "foundation.identity"
+  },
+  "assets/brand/palette.json": {
+   "format": "json",
+   "role": "palette",
+   "sha256": "de6631c8d275de067c4dfb18004e7766a60785a825545742d2d962c21a975d58",
+   "task": "foundation.identity"
+  },
+  "assets/fx/smoke_atlas.json": {
+   "format": "json",
+   "role": "atlas (TexturePacker hash: Phaser, PixiJS)",
+   "sha256": "a0d7cb49cb35e61142e688c2afbae4aa84c7ec4be268e466d989b0b9e1cae3fa",
+   "task": "vfx.smoke"
+  },
+  "assets/fx/smoke_flipbook.json": {
+   "format": "json",
+   "role": "flipbook_meta",
+   "sha256": "7fa4f2337dee26f57065a8dea0713657057ffd7078b05996d95edfa415b980a6",
+   "task": "vfx.smoke"
+  },
+  "assets/fx/smoke_flipbook.png": {
+   "format": "png",
+   "role": "flipbook",
+   "sha256": "f593cb37815f811b2b2c195d893da645268e6d99b931d5b647104406f3d2f1ee",
+   "task": "vfx.smoke"
+  },
+  "assets/icons/apple-touch-icon.png": {
+   "format": "png",
+   "role": "icon",
+   "sha256": "a6040089f93bf5cb2a9421cd16544691884426a824c2ca16ec6afac0c24d86cb",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/favicon-16.png": {
+   "format": "png",
+   "role": "favicon",
+   "sha256": "e1be05e0cdb7e6fc6701df5cbd0704a617ee6e9868f0e1ee42dab02fa984cec8",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/favicon-32.png": {
+   "format": "png",
+   "role": "favicon",
+   "sha256": "613f8602fa7081e1f9b4acc32560475a59327fb1528e948b52a42cd8d8f174b4",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/favicon.ico": {
+   "format": "ico",
+   "role": "favicon",
+   "sha256": "6ff18e8452a674a4755ac298f8fce14e1fb6319500be4ba019e8a4ce33d31cbf",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/icon-1024.png": {
+   "format": "png",
+   "role": "icon_master",
+   "sha256": "015474a68be81ac0c6caebc79fd83246aca078dfdf538e4131b240d324eb30e0",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/icon-192.png": {
+   "format": "png",
+   "role": "icon",
+   "sha256": "19b16ba9d1aa22ae6fc6a488fcc21fd62c6b227d33a61b44a40e0661919a8d02",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/icon-512.png": {
+   "format": "png",
+   "role": "icon",
+   "sha256": "430d4f69d0394943fe3857e4638db1bae3cd56881dc3e47be3ef1a6adf790e9d",
+   "task": "icon.derivatives"
+  },
+  "assets/icons/icon-maskable-512.png": {
+   "format": "png",
+   "role": "icon",
+   "sha256": "571df05252670f1c3d348379eab1893138014fd65c2e9d13ff05ef4502ff162e",
+   "task": "icon.derivatives"
   }
  },
  "owner": "integration",

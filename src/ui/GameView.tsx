@@ -77,7 +77,11 @@ export function GameView() {
       for (const e of game.events) {
         if (e.type === 'blast') { world.burst('blast', e.x, e.z); audio.play('explosion', 0.55, 0.9 + Math.random() * 0.2); }
         else if (e.type === 'dig') { world.burst('dig', e.x, e.z); audio.play('hit', 0.3, 0.8 + Math.random() * 0.4); }
-        else if (e.type === 'sale') { world.burst('sale', e.x, e.z); audio.play('coin', 0.6); ui().toast('good', `Shipment sold: ${fmtMoney(e.amount)}`); }
+        else if (e.type === 'sale') {
+          world.burst('sale', e.x, e.z); audio.play('coin', 0.6); ui().toast('good', `Shipment sold: ${fmtMoney(e.amount)}`);
+          // the money lands where the player reads it: the cash figure rings gold for a moment
+          const cash = document.querySelector('.stat'); if (cash) { cash.classList.remove('paid'); void (cash as HTMLElement).offsetWidth; cash.classList.add('paid'); cash.setAttribute('data-paid', `+ ${fmtMoney(e.amount)}`); }
+        }
         else if (e.type === 'built') { world.burst('build', e.x, e.z); audio.play('thud', 0.5); }
         else if (e.type === 'depart') audio.whistle(0.16);
         else if (e.type === 'arrive') audio.play('whoosh', 0.3);

@@ -124,12 +124,13 @@ function Minimap() {
   );
 }
 
-export function Credit() { return <span className="credit" data-haveanapp>by HaveAnApp</span>; }
+export function Credit() { return <a className="credit" data-haveanapp href="https://haveanapp.com" target="_blank" rel="noopener">by HaveAnApp</a>; }
 
 function HowTo({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-label="How to play">
       <div className="sheet">
+        <img className="sheetlogo" src="/assets/brand/logo.svg" alt="MONEY LINE" width="346" height="70" />
         <header><h2>How the line pays</h2><button type="button" className="x" onClick={onClose} aria-label="Close">×</button></header>
         <ol className="steps">
           <li><b>Borrow.</b> Finance → draw on the credit line. Interest is charged every day.</li>
@@ -220,7 +221,7 @@ function Title() {
           </button>
           <div className="tsmall">
             <button type="button" role="switch" aria-checked={ui.sound} onClick={() => { const on = !ui.sound; void audio.unlock(); audio.setEnabled(on); ui.set({ sound: on }); }}>Sound <b>{ui.sound ? 'On' : 'Off'}</b></button>
-            <span className="tby" data-haveanapp>by HaveAnApp</span>
+            <a className="tby" data-haveanapp href="https://haveanapp.com" target="_blank" rel="noopener">by HaveAnApp</a>
             <button type="button" onClick={() => setHelp(true)}>How to play</button>
           </div>
         </div>
@@ -241,6 +242,21 @@ class Boundary extends Component<{ children: ReactNode }, { error: string | null
 
 export function App() {
   const screen = useUI((s) => s.screen);
+  useEffect(() => {
+    // run state for measurement tools: numbers that change during play
+    const w = window as unknown as { __game: Record<string, unknown> };
+    const sync = () => {
+      const s = useUI.getState(), g = s.game;
+      w.__game = !g || s.screen === 'title' ? { state: 'title', score: 0, time: 0 }
+        : { state: g.finance.receivership ? 'over' : 'playing', score: Math.round(g.finance.totals.revenue), time: g.tick / 20, day: g.day, cash: Math.round(g.finance.cash), debt: Math.round(g.finance.debt),
+            objective: g.objective, track: g.edges.length, mines: g.mines.length, shipments: g.stats.shipmentsSold, speed: s.speed, tool: s.tool };
+    };
+    sync(); return useUI.subscribe(sync);
+  }, []);
+  useEffect(() => {
+    // the browser chrome takes its colour from the identity's palette
+    fetch('/assets/brand/palette.json').then((r) => r.json()).then((p: { background?: string }) => { if (p.background) document.querySelector('meta[name=theme-color]')?.setAttribute('content', p.background); }).catch(() => { /* keeps the default */ });
+  }, []);
   const help = useUI((s) => s.help);
   const set = useUI((s) => s.set);
   return (

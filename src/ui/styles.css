@@ -321,3 +321,20 @@ select { color: var(--ink); background: var(--card); } .meter { height: 8px; bor
   .tbtn { min-height: 64px; font-size: 17px; flex-direction: row; justify-content: space-between; padding: 0 24px; } .tbtn small { font-size: var(--t2); }
   .tsmall { margin-top: 8px; }
 }
+.sheetlogo { width: min(346px, 100%); height: auto; border-radius: 6px; justify-self: start; }
+a.credit, a.tby { text-decoration: none; } a.credit:hover, a.tby:hover { color: var(--gold); text-decoration: underline; }
+a.tby { min-height: 44px; display: inline-flex; align-items: center; }
+.toast.good { color: var(--ink); }
+
+/* ── moments ── */
+.stat { position: relative; }
+.stat.paid { animation: paid 1.6s ease-out; }
+.stat.paid::after { content: attr(data-paid); position: absolute; left: var(--s5); top: 100%; margin-top: 6px; padding: 4px 12px; border-radius: 6px; background: var(--gold); color: var(--on-gold); font-weight: 700; font-size: var(--t4); white-space: nowrap; box-shadow: 0 3px 0 var(--red-deep); animation: paidtag 2.4s ease-out forwards; z-index: 9; pointer-events: none; }
+@keyframes paid { 0% { background: var(--gold); color: var(--on-gold); } 100% { background: transparent; } }
+@keyframes paidtag { 0% { opacity: 0; transform: translateY(-10px) scale(.9); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(6px); } }
+.coachart { animation: coreup .9s cubic-bezier(.2, .7, .2, 1) both; }
+.tscreen h1 span { animation: leaf .7s ease-out both; } .tscreen h1 span:last-child { animation-delay: .12s; }
+.tmenu, .ttag, .tpremise { animation: leaf .6s ease-out .35s both; }
+@keyframes coreup { from { opacity: 0; transform: translateY(26px); } }
+@keyframes leaf { from { opacity: 0; transform: translateY(-10px); } }
+@media (max-width: 820px) { .stat.paid::after { left: var(--s2); font-size: var(--t3); } }
