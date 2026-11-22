@@ -1,5 +1,9 @@
 /** Sound: produced samples for effects and ambience, plus a synthesised whistle and exhaust beat. Starts only after a user gesture. */
-const FILES = { click: 'click', coin: 'coin', explosion: 'explosion', thud: 'thud', hit: 'hit', whoosh: 'whoosh', wind: 'ambience_wind', forest: 'ambience_forest', music: 'music' } as const;
+const FILES = {
+  click: '/assets/audio/click.ogg', coin: '/assets/audio/coin.ogg', explosion: '/assets/audio/explosion.ogg', thud: '/assets/audio/thud.ogg',
+  hit: '/assets/audio/hit.ogg', whoosh: '/assets/audio/whoosh.ogg', wind: '/assets/audio/ambience_wind.ogg', forest: '/assets/audio/ambience_forest.ogg',
+  music: '/assets/audio/music.ogg',
+} as const;
 type Name = keyof typeof FILES;
 
 class Audio {
@@ -19,7 +23,7 @@ class Audio {
     this.ctx = new AC();
     this.master = this.ctx.createGain(); this.master.gain.value = this.enabled ? 0.8 : 0; this.master.connect(this.ctx.destination);
     await Promise.all((Object.keys(FILES) as Name[]).map(async (n) => {
-      try { const r = await fetch(`/assets/audio/${FILES[n]}.ogg`); this.buffers.set(n, await this.ctx!.decodeAudioData(await r.arrayBuffer())); } catch { /* a missing sound is not fatal */ }
+      try { const r = await fetch(FILES[n]); this.buffers.set(n, await this.ctx!.decodeAudioData(await r.arrayBuffer())); } catch { /* a missing sound is not fatal */ }
     }));
     this.startLoops();
   }

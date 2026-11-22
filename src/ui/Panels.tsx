@@ -269,7 +269,12 @@ function RailPanel({ g }: { g: GameState }) {
     ['Rails and ties', plan.items.rails], ['Labour', plan.items.labour], ['Grading', plan.items.grading], ['Explosives', plan.items.explosives],
     ['Bridges', plan.items.bridges], ['Tunnels', plan.items.tunnels], ['Land and clearing', plan.items.land], ['Own timber and stone', plan.items.materialsCredit],
   ] : [];
-  const approve = () => { const r = ui.run({ type: 'buildLine', way: ui.way, options: ui.routeOpt }); if (r.ok) { ui.setWay([]); ui.setTool('inspect'); } };
+  const approve = () => {
+    const first = ui.way[0];
+    const r = ui.run({ type: 'buildLine', way: ui.way, options: ui.routeOpt });
+    // the money is spent: take the player to where the work starts
+    if (r.ok) { ui.setWay([]); ui.setTool('inspect'); if (first) theWorld?.focus(first.x + 3, first.z, 30); }
+  };
   let est: ReactNode = null;
   if (plan && plan.pts.length > 3) {
     // what the present engine could haul over this line alone, in each direction
