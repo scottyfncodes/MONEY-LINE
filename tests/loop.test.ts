@@ -32,7 +32,7 @@ describe('the first mining-to-market loop, end to end', () => {
   let millPad = { x: 0, z: 0 };
 
   it('the objectives list is the guided path this test follows', () => {
-    expect(titles).toEqual(['Raise the capital', 'Lay track to the Eureka claim', 'Open the Eureka mine', 'Build a loading platform',
+    expect(titles).toEqual(['Sign for a line to the Eureka claim', 'Bring the railhead to the claim', 'Open the Eureka mine', 'Build a loading platform',
       'Sell the first shipment', 'Raise a stamp mill', 'Close a month in the black', 'Improve the works', 'Find the second strike']);
     expect(titles.indexOf('Improve the works')).toBe(7);
   });
@@ -85,15 +85,14 @@ describe('the first mining-to-market loop, end to end', () => {
     expect(s.finance.cash).toBe(FINANCE.startCash);
   });
 
-  it('3. borrows from the bank → objective "Raise the capital"', () => {
+  it('3. borrows from the bank: money alone completes nothing', () => {
     expect(availableCredit(s)).toBeGreaterThanOrEqual(45000);
     must(s, { type: 'borrow', amount: 45000 });
     expect(s.finance.cash).toBe(FINANCE.startCash + 45000);
     expect(s.finance.debt).toBe(45000);
-    expect(s.objective).toBe(0); // objectives are checked by the simulation, on the next tick
     step();
-    expect(s.objective).toBe(1);
-    expect(s.notes.some((n) => n.text === 'Done: Raise the capital.')).toBe(true);
+    expect(s.stats.borrowedOnce).toBe(true);
+    expect(s.objective).toBe(0); // the first objective is the line itself
   });
 
   it('4. modifies the landscape: pays to grade a hillside beside the claim into a level pad for the future mill', () => {
@@ -127,13 +126,17 @@ describe('the first mining-to-market loop, end to end', () => {
     a.check();
   });
 
-  it('5. builds a railroad to the deposit → objective "Lay track to the Eureka claim"', () => {
+  it('5. signs for a railroad to the deposit and builds it → objectives "Sign for a line to the Eureka claim" and "Bring the railhead to the claim"', () => {
     const pv = previewLine(s, way);
     expect(pv.error).toBeNull();
     const cash = s.finance.cash, changedBefore = countDiff(s.height, pristine.height);
     must(s, { type: 'buildLine', way });
     expect(cash - s.finance.cash).toBe(pv.plan.total);
     expect(s.jobs.length).toBe(1);
+    expect(s.objective).toBe(0); // objectives are checked by the simulation, on the next tick
+    step();
+    expect(s.objective).toBe(1);
+    expect(s.notes.some((n) => n.text === 'Done: Sign for a line to the Eureka claim.')).toBe(true);
     step(TPD);
     expect(s.objective).toBe(1); // signing the contract is not reaching the claim
     expect(a.until(() => s.jobs.length === 0, 80, each)).toBe(true);

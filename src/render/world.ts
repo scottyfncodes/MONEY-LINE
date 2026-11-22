@@ -19,6 +19,8 @@ export interface Preview {
   brush?: { x: number; z: number; radius: number; color: number } | null;
   ghost?: { x: number; z: number; ok: boolean; half: number } | null;
   ring?: { x: number; z: number; r: number; color: number } | null;
+  /** where a line being laid out is meant to end */
+  target?: { x: number; z: number; r: number } | null;
   select?: { x: number; z: number; r: number } | null;
 }
 
@@ -114,7 +116,7 @@ export class World {
   quality: 'high' | 'low' = 'high';
 
   cam = { x: 52, z: 70, dist: 150, yaw: 0.3, pitch: 0.66, follow: null as number | null };
-  private camGoal: { x: number; z: number; dist?: number } | null = null;
+  private camGoal: { x: number; z: number; dist?: number; yaw?: number; pitch?: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, private s: GameState) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -180,9 +182,43 @@ export class World {
     this.cam.x += (right * c - fwd * s) * k; this.cam.z += (-right * s - fwd * c) * k;
     this.clampCam(); this.cam.follow = null; this.camGoal = null;
   }
-  zoom(factor: number) { this.cam.dist = THREE.MathUtils.clamp(this.cam.dist * factor, 7, 210); }
-  rotate(dyaw: number, dpitch = 0) { this.cam.yaw += dyaw; this.cam.pitch = THREE.MathUtils.clamp(this.cam.pitch + dpitch, 0.38, 1.35); }
+  zoom(factor: number) { this.cam.dist = THREE.MathUtils.clamp(this.cam.dist * factor, 7, 260); }
+  rotate(dyaw: number, dpitch = 0) { if (this.camGoal) { delete this.camGoal.yaw; delete this.camGoal.pitch; } this.cam.yaw += dyaw; this.cam.pitch = THREE.MathUtils.clamp(this.cam.pitch + dpitch, 0.38, 1.35); }
   focus(x: number, z: number, dist?: number) { this.camGoal = { x, z, dist }; this.cam.follow = null; }
+  /** Ground distance one screen pixel covers at the middle of the view. */
+  cellsPerPx(): number { return (2 * this.cam.dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / (this.renderer.domElement.clientHeight || 900); }
+  /**
+   * Bring a set of ground points into the part of the screen the interface leaves clear, optionally turning the view.
+   * `inset` is the margin in CSS pixels on each side; `instant` skips the glide.
+   */
+  fit(points: Array<{ x: number; z: number }>, inset: { top: number; right: number; bottom: number; left: number }, yaw = this.cam.yaw, instant = false, pitch = this.cam.pitch) {
+    if (!points.length) return;
+    const c = this.renderer.domElement, W = c.clientWidth || 1, H = c.clientHeight || 1;
+    const safeW = Math.max(60, W - inset.left - inset.right), safeH = Math.max(60, H - inset.top - inset.bottom);
+    const probe = this.camera.clone();
+    const sy = Math.sin(yaw), cy = Math.cos(yaw);
+    let x = points.reduce((a, p) => a + p.x, 0) / points.length, z = points.reduce((a, p) => a + p.z, 0) / points.length, dist = this.cam.dist;
+    const v = new THREE.Vector3();
+    for (let pass = 0; pass < 10; pass++) {
+      const ty = this.ground(x, z), r = Math.cos(pitch) * dist;
+      probe.position.set(x + sy * r, ty + Math.sin(pitch) * dist, z + cy * r); probe.lookAt(x, ty, z); probe.updateMatrixWorld(); probe.matrixWorldInverse.copy(probe.matrixWorld).invert();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of points) {
+        v.set(p.x, this.ground(p.x, p.z), p.z).project(probe);
+        const px = (v.x * 0.5 + 0.5) * W, py = (-v.y * 0.5 + 0.5) * H;
+        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+      }
+      const cpp = (2 * dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / H;
+      const ex = (x0 + x1) / 2 - (inset.left + safeW / 2), ey = (y0 + y1) / 2 - (inset.top + safeH / 2);
+      x += cy * ex * cpp + (sy * ey * cpp) / Math.sin(pitch); z += -sy * ex * cpp + (cy * ey * cpp) / Math.sin(pitch);
+      const scale = Math.max((x1 - x0) / safeW, (y1 - y0) / safeH, 0.02);
+      dist = THREE.MathUtils.clamp(dist * (pass < 9 ? scale : 1), 16, 300);
+    }
+    x = THREE.MathUtils.clamp(x, -4, N + 4); z = THREE.MathUtils.clamp(z, -4, N + 4);
+    this.cam.follow = null;
+    if (instant) { this.cam.x = x; this.cam.z = z; this.cam.dist = dist; this.cam.yaw = yaw; this.cam.pitch = pitch; this.camGoal = null; }
+    else this.camGoal = { x, z, dist, yaw, pitch };
+  }
   followTrain(id: number | null) { this.cam.follow = id; this.camGoal = null; if (id != null && this.cam.dist > 26) this.cam.dist = 22; }
   private clampCam() { this.cam.x = THREE.MathUtils.clamp(this.cam.x, -4, N + 4); this.cam.z = THREE.MathUtils.clamp(this.cam.z, -4, N + 4); }
   private updateCamera(dt: number) {
@@ -192,7 +228,10 @@ export class World {
       const g = this.camGoal, k = Math.min(1, dt * 4.5);
       cam.x += (g.x - cam.x) * k; cam.z += (g.z - cam.z) * k;
       if (g.dist) cam.dist += (g.dist - cam.dist) * k;
-      if (Math.hypot(g.x - cam.x, g.z - cam.z) < 0.05 && (!g.dist || Math.abs(g.dist - cam.dist) < 0.3)) this.camGoal = null;
+      let dy = 0;
+      if (g.yaw != null) { dy = Math.atan2(Math.sin(g.yaw - cam.yaw), Math.cos(g.yaw - cam.yaw)); cam.yaw += dy * k; }
+      if (g.pitch != null) { cam.pitch += (g.pitch - cam.pitch) * k; if (Math.abs(g.pitch - cam.pitch) > 0.004) dy = Math.max(Math.abs(dy), 0.01); }
+      if (Math.hypot(g.x - cam.x, g.z - cam.z) < 0.05 && (!g.dist || Math.abs(g.dist - cam.dist) < 0.3) && Math.abs(dy) < 0.004) this.camGoal = null;
     }
     const ty = this.ground(cam.x, cam.z);
     const h = Math.sin(cam.pitch) * cam.dist, r = Math.cos(cam.pitch) * cam.dist;
@@ -505,7 +544,9 @@ export class World {
   setPreview(p: Preview) { this.preview = p; }
   private syncPreview() {
     const p = this.preview;
-    const key = JSON.stringify([p.route ? [p.route.pts.length, p.route.valid, p.route.way, p.route.pts[p.route.pts.length - 1]] : 0, p.brush, p.ghost, p.ring, p.select, this.s.rev.terrain]);
+    // drawn guides keep a readable width on screen however far the view is pulled back
+    const cpp = this.cellsPerPx(), zoomKey = Math.round(Math.log(cpp) * 6);
+    const key = JSON.stringify([p.route ? [p.route.pts.length, p.route.valid, p.route.way, p.route.pts[p.route.pts.length - 1]] : 0, p.brush, p.ghost, p.ring, p.target, p.select, this.s.rev.terrain, p.route || p.target ? zoomKey : 0]);
     if (key === this.previewKey) return;
     this.previewKey = key;
     for (const c of [...this.overlay.children]) { this.overlay.remove(c); (c as THREE.Mesh).geometry?.dispose(); }
@@ -525,6 +566,7 @@ export class World {
     if (p.brush) drape(p.brush.x, p.brush.z, p.brush.radius, p.brush.color, 0.1);
     if (p.ring) drape(p.ring.x, p.ring.z, p.ring.r, p.ring.color, 0.14, 0.8);
     if (p.select) drape(p.select.x, p.select.z, p.select.r, 0xffffff, 0.07, 0.9);
+    if (p.target) { drape(p.target.x, p.target.z, p.target.r, 0xe7b63c, Math.max(0.16, cpp * 3), 0.95); drape(p.target.x, p.target.z, p.target.r * 0.62, 0xe7b63c, Math.max(0.07, cpp * 1.2), 0.5); }
     if (p.ghost) {
       const g = p.ghost, pos: number[] = [];
       const h = heightAt(s, g.x, g.z) * VS + 0.1;
@@ -540,10 +582,11 @@ export class World {
       const colors = [0xf4ecd8, 0xe0a34a, 0x6fb7d9, 0xb28ad6];
       const pos: number[] = [], col: number[] = [];
       const c = new THREE.Color();
+      const half = Math.max(0.16, cpp * 2.6);
       for (let i = 0; i < r.pts.length - 1; i++) {
         const a = r.pts[i], b = r.pts[i + 1];
         let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-        const nx = -tz * 0.16, nz = tx * 0.16;
+        const nx = -tz * half, nz = tx * half;
         const ya = Math.max(a.h, a.k === K_TUNNEL ? heightAt(s, a.x, a.z) : a.h) * VS + 0.12, yb = Math.max(b.h, b.k === K_TUNNEL ? heightAt(s, b.x, b.z) : b.h) * VS + 0.12;
         pos.push(a.x - nx, ya, a.z - nz, a.x + nx, ya, a.z + nz, b.x + nx, yb, b.z + nz, a.x - nx, ya, a.z - nz, b.x + nx, yb, b.z + nz, b.x - nx, yb, b.z - nz);
         c.set(r.valid ? colors[a.k] : 0xd9614e);
@@ -558,7 +601,7 @@ export class World {
       const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthTest: false }));
       m.renderOrder = 6; this.overlay.add(m);
       r.way.forEach((w, i) => {
-        const k = new THREE.Mesh(new THREE.SphereGeometry(i === 0 || i === r.way.length - 1 ? 0.34 : 0.26, 12, 8), new THREE.MeshBasicMaterial({ color: i === 0 ? 0x7fd08a : i === r.way.length - 1 ? 0xf0c84a : 0xffffff, depthTest: false }));
+        const k = new THREE.Mesh(new THREE.SphereGeometry(Math.max(i === 0 || i === r.way.length - 1 ? 0.34 : 0.26, cpp * (i === 0 || i === r.way.length - 1 ? 5.5 : 4.2)), 12, 8), new THREE.MeshBasicMaterial({ color: i === 0 ? 0x7fd08a : i === r.way.length - 1 ? 0xf0c84a : 0xffffff, depthTest: false }));
         k.position.set(w.x, this.ground(w.x, w.z) + 0.3, w.z); k.renderOrder = 7; this.overlay.add(k);
       });
     }

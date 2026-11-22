@@ -364,3 +364,58 @@ a.tby { min-height: 44px; display: inline-flex; align-items: center; }
 .paidplate { animation-duration: 4.5s; }
 @media (max-width: 820px) { .toast:nth-last-child(n+3) { display: none; } }
 .tbtn.second:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── the opening: track is drawn on the map ── */
+.handles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
+.grip { position: absolute; left: 0; top: 0; width: 0; height: 0; transition: opacity .2s; will-change: transform; }
+.grip i { position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; border-radius: 50%; background: rgba(231, 182, 60, .22); box-shadow: inset 0 0 0 3px var(--gold), 0 0 0 2px rgba(18, 36, 28, .8); }
+.grip i::after { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--on-gold); }
+.grip i::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--gold); animation: beacon 1.9s ease-out infinite; }
+@keyframes beacon { from { transform: scale(.75); opacity: .9; } to { transform: scale(2.3); opacity: 0; } }
+.grip b { position: absolute; left: 28px; top: -15px; white-space: nowrap; font-family: var(--display); font-weight: 700; font-size: var(--t2); line-height: 30px; letter-spacing: .04em; padding: 0 10px; border-radius: 6px; background: var(--gold); color: var(--on-gold); box-shadow: 0 2px 0 var(--red-deep), 0 6px 14px rgba(18, 36, 28, .35); }
+.grip b::before { content: ""; position: absolute; left: -4px; top: 50%; width: 10px; height: 10px; background: var(--gold); transform: translateY(-50%) rotate(45deg); }
+.chip { font-weight: 700; }
+.game.drawing .objectives, .game.drawing .dock, .game.drawing .panel, .game.drawing .rail, .game.drawing .minimap { pointer-events: none; }
+.game.drawing .objectives, .game.drawing .minimap { opacity: .35; transition: opacity .15s; }
+.game.drawing .chip { font-size: var(--t3); padding: 6px 12px; }
+
+.objbody .act { justify-self: start; margin: var(--s1) 0 0 26px; }
+.sticky { gap: var(--s2); }
+
+.toast { display: flex; align-items: center; }
+.toast::before { flex: none; }
+.toast.act { pointer-events: auto; padding-right: var(--s2); }
+.toast button { flex: none; margin-left: var(--s3); min-height: 44px; padding: 0 var(--s3); border-radius: 6px; background: var(--gold); color: var(--on-gold); font-family: var(--display); font-weight: 700; font-size: var(--t2); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; box-shadow: 0 2px 0 var(--red-deep); }
+
+/* the strip a map tool keeps to on a phone */
+.dock { position: absolute; left: var(--s2); right: var(--s2); bottom: calc(57px + env(safe-area-inset-bottom) + var(--s2)); z-index: 5; padding: var(--s3); display: grid; gap: var(--s2); background: var(--card); border-radius: var(--r); box-shadow: inset 0 0 0 1.5px var(--rule), 0 4px 0 rgba(18, 36, 28, .35), 0 12px 24px rgba(18, 36, 28, .25); animation: rise .2s ease-out; }
+.docktitle { font-weight: 700; line-height: 1.3; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--s3); }
+.docktitle b { font-size: 22px; line-height: 1.1; color: var(--gold); }
+.docktitle span { font-size: var(--t2); font-weight: 400; color: var(--ink-2); }
+.docksub { font-size: var(--t2); color: var(--ink-2); } .docksub.bad { color: var(--warn); }
+.dockrow { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.dockrow .btn { flex: 1; padding: 0 var(--s2); letter-spacing: .06em; white-space: nowrap; }
+.dockrow .btn.primary, .dockrow .btn.danger { flex: 1 0 100%; order: 2; min-height: 48px; }
+.game.laying .maplabel.city { opacity: 0 !important; }
+.dock.drawing .dockrow, .dock.drawing .docksub { display: none; }
+.dock.slim { grid-template-columns: 1fr auto; align-items: center; }
+.dock.slim .docktitle { font-weight: 400; font-size: var(--t2); }
+.dock.slim .btn { padding: 0 var(--s3); }
+@media (max-width: 820px) {
+  .objbody { padding: var(--s2) var(--s4) var(--s3); }
+  .objbody .how { font-size: var(--t2); color: var(--ink-2); }
+  .paidplate { top: calc(var(--bar) + env(safe-area-inset-top) + var(--objh, 50px) + 20px); }
+  .toasts { top: calc(var(--bar) + env(safe-area-inset-top) + var(--objh, 50px) + 20px); }
+}
+@media (max-width: 820px) {
+  /* five figures of cash and of debt have to fit beside the clock controls */
+  .brand { padding: 0 var(--s2); font-size: 17px; }
+  .stat { padding: 0 6px; } .val { font-size: 14px; }
+  .speeds { gap: 3px; padding: 0 4px; } .speeds button { width: 40px; }
+}
+@media (max-width: 820px) {
+  /* open, the card is a short brief: the valley has to show past it */
+  .objectives:not(.shut) .objhead { min-height: 34px; padding: var(--s2) var(--s4) 6px; }
+  .objectives:not(.shut) .objhead h2 { font-size: var(--t1); }
+  .objbody { gap: 6px; } .objbody .act { margin-top: 2px; }
+}
