@@ -9,7 +9,7 @@ You start in the city of Prosperity with $18,000, a bank credit line, one small 
 ```
 npm install
 npm run dev          # play at http://localhost:5173
-npm test             # 183 deterministic simulation tests (Vitest)
+npm test             # 193 deterministic simulation tests (Vitest)
 npm run build && npm run preview &
 npm run test:e2e     # the whole mining-to-market loop through the real UI (Playwright + Chromium)
 ```
