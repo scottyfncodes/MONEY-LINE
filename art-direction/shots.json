@@ -1,0 +1,18 @@
+{"version": 1, "product": "game", "viewports": ["phone", "desktop"], "shots": [
+  {"id": "title", "name": "Title, fully loaded", "kind": "title", "moment": "core-sample", "steps": [],
+   "wait_for": {"selector": ".tscreen h1", "timeout_ms": 8000}},
+  {"id": "mid-play", "name": "The valley on day one", "kind": "play", "steps": [{"click": "New Venture"}],
+   "wait_for": {"js": "!!window.__ml && window.__ml.state.tick > 4", "timeout_ms": 15000}},
+  {"id": "railhead", "name": "Crews laying the line", "kind": "moment", "moment": "railhead",
+   "steps": [{"click": "New Venture"}, {"wait": 800}, {"eval": "window.__ml.demo('railhead')"}],
+   "wait_for": {"js": "window.__ml.state.jobs.length === 1 && window.__ml.state.jobs[0].progress > 18", "timeout_ms": 15000}},
+  {"id": "first-sale", "name": "The first shipment is sold", "kind": "moment", "moment": "first-sale",
+   "steps": [{"click": "New Venture"}, {"wait": 800}, {"eval": "window.__ml.demo('nearSale')"}],
+   "wait_for": {"js": "window.__ml.state.stats.firstSale === true", "timeout_ms": 40000}},
+  {"id": "books", "name": "The month's books", "kind": "results",
+   "steps": [{"click": "New Venture"}, {"wait": 800}, {"eval": "window.__ml.demo('mine'); window.__ml.advanceDays(45)"}, {"selector": "nav[aria-label=Tools] button:nth-child(7)"}],
+   "wait_for": {"text": "Past months", "timeout_ms": 15000}},
+  {"id": "receivership", "name": "The bank takes the line", "kind": "fail",
+   "steps": [{"click": "New Venture"}, {"wait": 800}, {"eval": "window.__ml.demo('bust')"}],
+   "wait_for": {"selector": "[aria-label=Receivership]", "timeout_ms": 20000}}
+]}

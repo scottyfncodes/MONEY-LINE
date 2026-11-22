@@ -309,6 +309,24 @@ export function GameView() {
         }
         return best;
       },
+      /** Play real commands through the simulation to reach a named point in the first loop (captures and tests). */
+      demo: (stage: 'line' | 'railhead' | 'mine' | 'nearSale' | 'bust') => {
+        const st = ui(); const run = (c: Parameters<typeof st.run>[0]) => st.run(c, true);
+        const days = (n: number) => { for (let i = 0; i < n * TIME.ticksPerDay; i++) tick(game); };
+        const hook = (window as unknown as { __ml: { findSite: (k: 'mine' | 'mill', x: number, z: number) => { x: number; z: number } | null } }).__ml;
+        if (stage === 'bust') { run({ type: 'borrow', amount: 1e9 }); run({ type: 'borrow', amount: Math.floor((game.finance.assetValue * 0.45 + 60000) - game.finance.debt) }); for (let i = 0; i < 9000 && !game.finance.receivership; i++) days(1); game.events.length = 0; return; }
+        const gold = game.deposits[0];
+        if (!game.edges.length && !game.jobs.length) { run({ type: 'borrow', amount: 45000 }); run({ type: 'buildLine', way: suggestRoute(game, game.nodes[0], { x: gold.x - 3, z: gold.z + 4 })! }); }
+        if (stage === 'line') return;
+        if (stage === 'railhead') { days(9); world.focus(game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].x ?? gold.x, game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].z ?? gold.z, 30); game.events.length = 0; return; }
+        while (game.jobs.length) days(1);
+        if (!game.mines.length) { const s0 = hook.findSite('mine', gold.x, gold.z); if (s0) run({ type: 'mine', x: s0.x, z: s0.z }); const e = game.edges[0], p = e.pts[e.pts.length - 4]; run({ type: 'platform', x: p.x, z: p.z }); }
+        if (stage === 'nearSale') {
+          for (let i = 0; i < 4000; i++) { const t = game.trains[0]; if (t.phase === 'inbound' && t.trip && t.trip.dist > t.trip.length - 7) break; tick(game); }
+          const n = game.nodes[0]; world.cam.x = n.x + 1; world.cam.z = n.z + 1; world.cam.dist = 30; world.cam.pitch = 0.62; st.set({ speed: 1 });
+        }
+        game.events.length = 0;
+      },
       advanceDays: (days: number) => { for (let i = 0; i < days * TIME.ticksPerDay; i++) tick(game); game.events.length = 0; },
     };
 
