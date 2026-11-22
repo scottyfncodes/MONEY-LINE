@@ -7,6 +7,7 @@ import { dateLabel } from '../sim/sim';
 import { useUI, type Tool } from '../store';
 import { GameView, theWorld } from './GameView';
 import { SidePanel } from './Panels';
+import './titleArt.js';
 
 const ICONS: Record<Tool, ReactNode> = {
   inspect: <><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l6 6" /></>,
@@ -41,7 +42,7 @@ function TopBar() {
   );
   return (
     <header className="topbar">
-      <button type="button" className="brand" onClick={() => set({ menu: !menu })} aria-expanded={menu} aria-label="MONEY LINE menu">MONEY LINE</button>
+      <button type="button" className="brand" onClick={() => set({ menu: !menu })} aria-expanded={menu} aria-label="MONEY LINE menu">Money Line</button>
       <div className="stats">
         {stat('Cash', fmtMoney(f.cash), f.cash < 0 ? 'bad' : '')}
         {stat('Debt', fmtMoney(f.debt), f.debt > 0 ? 'debt' : '')}
@@ -184,30 +185,48 @@ function Receivership() {
 function Title() {
   const ui = useUI();
   const [help, setHelp] = useState(false);
+  const art = useRef<HTMLCanvasElement>(null);
   useEffect(() => { void ui.probeSave(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // the core sample: mountain, mine and train on top; shaft, galleries and the gold seam beneath
+    const w = window as unknown as { Diorama: { paint: (c: HTMLCanvasElement, cfg: object) => unknown }; WORLD: { noon: object } };
+    const draw = () => {
+      const cv = art.current; if (!cv || !w.Diorama) return;
+      const W = innerWidth, H = innerHeight, desk = W >= 900;
+      w.Diorama.paint(cv, {
+        pal: w.WORLD.noon, extent: [4, 4, 19, 19], depth: 13, strata: [1, 3, 5.5, 8, 10.5], shadow: { color: 'rgba(8,24,17,.5)', blur: desk ? 26 : 14, offset: 1.6 },
+        train: { s: 0.925, dir: 1, cars: 2 }, trainScale: 1.45, treeScale: 1.1,
+        underground: { seam: [9.2, 5.6, 8.6], shaftX: 9.5, levels: [3.2, 6.2, 9.4], reach: [5, 4.6, 6], right: [[8, 13, 4.5], [14, 18, 8]] },
+        ...(desk ? { tw: Math.min(30, Math.max(17, (H - 260) / 21)), focus: [11.5, 11.5, -3.6], at: [0.5, 0.57] } : { tw: Math.min(H > 760 ? 16.6 : 14.2, W / 23.5), focus: [11.5, 11.5, -3.6], at: [0.5, H > 760 ? 0.56 : 0.59] }),
+      });
+    };
+    void (document.fonts ? document.fonts.ready : Promise.resolve()).then(draw);
+    addEventListener('resize', draw);
+    return () => removeEventListener('resize', draw);
+  }, []);
   const begin = (fn: () => void) => { void audio.unlock(); audio.play('click', 0.5); fn(); };
   return (
-    <main className="title">
-      <div className="cert">
-        <p className="over">The Prosperity &amp; Sawtooth Railroad and Mining Company</p>
-        <h1>MONEY LINE</h1>
-        <p className="tag">Dig Deep. Lay Track. Strike Rich.</p>
-        <div className="orn" aria-hidden="true"><span /><svg viewBox="0 0 48 16" width="48" height="16"><path d="M2 14h44M8 14V7h6v7M14 9h14V5h6v9M30 5V2h3v3" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="12" cy="14" r="2" fill="currentColor" /><circle cx="24" cy="14" r="2" fill="currentColor" /><circle cx="32" cy="14" r="2" fill="currentColor" /></svg><span /></div>
-        <p className="premise">The year is 1890. There is gold in the Sawtooth. The bank will lend you sixty thousand dollars.</p>
-        <div className="actions">
-          <button type="button" className="btn primary big" onClick={() => begin(() => ui.startNew())}>New Venture</button>
-          <button type="button" className="btn big" disabled={!ui.saveInfo} onClick={() => begin(() => { void ui.continueGame(); })}>
-            Continue{ui.saveInfo && <small>Day {ui.saveInfo.day + 1} · {fmtMoney(ui.saveInfo.cash)}</small>}
+    <div className="coach">
+      <canvas ref={art} className="coachart" aria-hidden="true" />
+      <div className="lining" aria-hidden="true" />
+      <main className="tscreen">
+        <h1><span>Money</span> <span>Line</span></h1>
+        <p className="ttag">Dig Deep. Lay Track. Strike Rich.</p>
+        <p className="tpremise">The year is 1890. There is gold in the Sawtooth. The bank will lend you sixty thousand dollars.</p>
+        <div className="tmenu">
+          <button type="button" className="tbtn primary" onClick={() => begin(() => ui.startNew())}>New Venture</button>
+          <button type="button" className="tbtn second" disabled={!ui.saveInfo} onClick={() => begin(() => { void ui.continueGame(); })}>
+            Continue <small>{ui.saveInfo ? `Day ${ui.saveInfo.day + 1} · ${fmtMoney(ui.saveInfo.cash)}` : 'No venture saved yet'}</small>
           </button>
+          <div className="tsmall">
+            <button type="button" role="switch" aria-checked={ui.sound} onClick={() => { const on = !ui.sound; void audio.unlock(); audio.setEnabled(on); ui.set({ sound: on }); }}>Sound <b>{ui.sound ? 'On' : 'Off'}</b></button>
+            <span className="tby" data-haveanapp>by HaveAnApp</span>
+            <button type="button" onClick={() => setHelp(true)}>How to play</button>
+          </div>
         </div>
-        <div className="minor">
-          <button type="button" onClick={() => { const on = !ui.sound; void audio.unlock(); audio.setEnabled(on); ui.set({ sound: on }); }} aria-pressed={ui.sound}>Sound: {ui.sound ? 'on' : 'off'}</button>
-          <button type="button" onClick={() => setHelp(true)}>How to play</button>
-        </div>
-        <Credit />
-      </div>
+      </main>
       {help && <HowTo onClose={() => setHelp(false)} />}
-    </main>
+    </div>
   );
 }
 

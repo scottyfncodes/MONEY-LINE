@@ -1,0 +1,33 @@
+{
+ "style": "isometric",
+ "look_name": "Isometric Diorama",
+ "style_how": "named in the request",
+ "liked_in_others": "Person chose C (Pay Streak) with the core icon. No comment on the others.",
+ "approved_by": "a person (production_approve)",
+ "icon": "core",
+ "icon_idea": "The core sample: a snow-capped peak on a cut column of strata with the gold seam running through it.",
+ "design": "c",
+ "name": "Pay Streak",
+ "idea": "A core sample of the claim: the mountain, the mine and the train on top, and beneath them the shafts, the lamplit galleries and the gold seam it is all for.",
+ "palette": {
+  "background": "#1f4d3a",
+  "surface": "#143327",
+  "primary": "#e7b63c",
+  "accent": "#c9502f",
+  "text": "#f4ead0"
+ },
+ "type": {
+  "display": "Abril Fatface",
+  "body": "Archivo"
+ },
+ "composition": "Symmetrical and centred on coach green inside a gold lining: gold-leaf lettering crowns a tall cut column of rock that runs down the middle of the screen, with two side-by-side buttons at its foot; on desktop the two words of the name split either side of the peak.",
+ "flavor": "Pullman green and gold leaf: signwriter's shaded fat-face letters, vermilion lining and a bright noon world like a showroom model.",
+ "files": {
+  "phone": "art-direction/target/phone.png",
+  "browser": "art-direction/target/browser.png",
+  "desktop": "art-direction/target/desktop.png",
+  "play": "art-direction/target/play.png",
+  "icon": "art-direction/target/icon.png"
+ },
+ "saved": "2026-11-22T15:53:13+00:00"
+}

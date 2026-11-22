@@ -1,18 +1,19 @@
-/* MONEY LINE — the survey office. Paper, ink and one oxblood accent; ruled boxes, no shadows-as-decoration. */
-@font-face { font-family: "Old Standard TT"; src: url("/fonts/old-standard-tt-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Old Standard TT"; src: url("/fonts/old-standard-tt-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
-@font-face { font-family: "Old Standard TT"; src: url("/fonts/old-standard-tt-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
-@font-face { font-family: "Newsreader"; src: url("/fonts/newsreader-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Newsreader"; src: url("/fonts/newsreader-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+/* MONEY LINE — Pay Streak. Coach-green panels lined in gold leaf, ivory figures, gold for what you act on. */
+@font-face { font-family: "Abril Fatface"; src: url("/fonts/abril-fatface-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Archivo"; src: url("/fonts/archivo-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Archivo"; src: url("/fonts/archivo-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 
 :root {
-  --paper: #ece3cb; --card: #f7f1e0; --ink: #2a2622; --ink-2: #5f5446; --red: #8a3a1e; --red-deep: #6f2c15; --green: #2f5a3c; --gold: #b8892f;
-  --rule: rgba(42, 38, 34, .72); --hair: rgba(42, 38, 34, .3); --wash: rgba(42, 38, 34, .06);
-  --display: "Old Standard TT", "Bodoni 72", Didot, Georgia, serif;
-  --text: "Newsreader", Georgia, "Times New Roman", serif;
+  /* Pay Streak: coach green, gold leaf, one vermilion line */
+  --paper: #1f4d3a; --card: #143327; --lift: #2b634d; --ink: #f4ead0; --ink-2: #c3cdb4; --on-gold: #12241c;
+  --red: #e7b63c; --red-deep: #c9982b; --green: #e7b63c; --gold: #e7b63c; --verm: #c9502f; --warn: #f3a58c;
+  --rule: rgba(231, 182, 60, .75); --hair: rgba(244, 234, 208, .2); --wash: rgba(244, 234, 208, .08);
+  --title: "Abril Fatface", "Bodoni 72", Didot, Georgia, serif;
+  --display: "Archivo", "Franklin Gothic Medium", Arial, sans-serif;
+  --text: "Archivo", "Franklin Gothic Medium", Arial, sans-serif;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
   --t1: 11px; --t2: 13px; --t3: 15px; --t4: 18px; --t5: 24px;
-  --bar: 64px; --railw: 88px; --panelw: 372px;
+  --bar: 64px; --railw: 76px; --panelw: 372px; --r: 8px;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -222,3 +223,101 @@ select { height: 44px; border: 1px solid var(--rule); background: var(--card); p
   .keys { grid-template-columns: auto 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ── Pay Streak: shape, lining and type ── */
+.bad, .val.debt, .hint.bad { color: var(--warn); }
+.topbar { background: var(--card); border-bottom: 0; box-shadow: inset 0 -2px 0 var(--gold), 0 3px 0 var(--verm), 0 10px 20px rgba(18, 36, 28, .3); }
+.brand { font-family: var(--title); font-weight: 400; font-size: 30px; letter-spacing: 0; color: var(--gold); text-shadow: 2px 2px 0 var(--verm); border-right: 1px solid var(--hair); }
+.lab, .rail button, .btn, .tag, .seg button, .objhead h2, .maplabel, .minor button, .cert .over, .legend { font-weight: 700; }
+.val { font-weight: 700; } .val.good { color: var(--gold); }
+.clock { border-right: 0; } .speeds { align-items: center; gap: 6px; padding: 0 var(--s3); }
+.speeds button { width: 50px; height: 44px; border: 1.5px solid var(--rule); border-radius: var(--r); }
+.speeds button:last-child { border-right: 1.5px solid var(--rule); }
+.speeds button.on, .seg button.on { background: var(--gold); color: var(--on-gold); }
+.rail { background: none; border: 0; gap: 8px; }
+.rail button { background: var(--card); border: 0; border-radius: var(--r); box-shadow: inset 0 0 0 1.5px var(--rule), 0 3px 0 rgba(18, 36, 28, .4); height: 62px; font-size: 9.5px; letter-spacing: .08em; }
+.rail button:last-child { border: 0; }
+.rail button:hover { background: var(--lift); }
+.rail button.on { background: var(--gold); color: var(--on-gold); box-shadow: 0 3px 0 var(--red-deep); }
+.objectives, .panel, .menu, .minimap, .sheet, .toast, .chip, .maplabel, .cert { border: 0; border-radius: var(--r); box-shadow: inset 0 0 0 1.5px var(--rule), 0 4px 0 rgba(18, 36, 28, .35), 0 12px 24px rgba(18, 36, 28, .25); }
+.maplabel, .chip { box-shadow: inset 0 0 0 1px var(--rule), 0 2px 0 rgba(18, 36, 28, .4); border-radius: 6px; }
+.chip[data-tone="ok"] { color: var(--gold); } .chip[data-tone="bad"] { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+.maplabel.deposit { font-style: normal; } .maplabel.deposit.owned { color: var(--gold); border: 0; }
+.objhead h2 { color: var(--gold); letter-spacing: .22em; } .objhead em { font-style: normal; font-weight: 700; color: var(--ink-2); font-size: var(--t2); letter-spacing: .08em; }
+.objectives:not(.shut) .objhead, .panelhead { border-bottom: 1px solid var(--hair); }
+.objbody i { color: var(--gold); } .objbody .prog { color: var(--gold); } .objbody .how { font-style: normal; color: var(--ink); }
+.objbody .why, .hint { font-style: normal; }
+.panelhead h2, .sheet h2 { font-family: var(--title); font-weight: 400; font-style: normal; font-size: 26px; letter-spacing: 0; text-transform: none; color: var(--gold); }
+.panelhead { min-height: 56px; }
+.sec h3 { font-family: var(--display); font-style: normal; font-weight: 700; font-size: var(--t2); letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+.row .v { font-weight: 700; } .row .v.good { color: var(--gold); }
+.card { background: rgba(244, 234, 208, .05); border-radius: 6px; } .card h4 { font-weight: 700; }
+.btn { border-radius: var(--r); border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px var(--rule); color: var(--ink); }
+.btn:hover:not(:disabled) { background: var(--lift); color: var(--ink); }
+.btn.primary { background: var(--gold); color: var(--on-gold); box-shadow: 0 3px 0 var(--red-deep); }
+.btn.primary:hover:not(:disabled) { background: #f0c552; color: var(--on-gold); }
+.btn.ghost { box-shadow: inset 0 0 0 1px var(--hair); }
+.btn.danger { color: var(--warn); box-shadow: inset 0 0 0 1.5px var(--warn); } .btn.danger:hover:not(:disabled) { background: var(--verm); color: var(--ink); }
+.stepper, .seg, select, .meter, .minimap canvas, .mapbtns { border-radius: 6px; } .seg { overflow: hidden; }
+select { color: var(--ink); background: var(--card); } .meter { height: 8px; border-color: var(--hair); background: rgba(18, 36, 28, .5); } .meter span { border-radius: 6px; background: var(--gold); }
+.pick { border-radius: 6px; } .pick.on { border-color: var(--gold); box-shadow: inset 4px 0 0 var(--gold); background: var(--wash); }
+.alert { border-color: var(--warn); color: var(--ink); background: rgba(201, 80, 47, .16); border-radius: 6px; }
+.check input { accent-color: var(--gold); }
+.spark path { stroke: var(--ink); } .spark circle { fill: var(--gold); }
+.toast { border-left: 0; } .toast::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-2); margin-right: 10px; }
+.toast.good::before { background: var(--gold); } .toast.warn::before, .toast.bad::before { background: var(--verm); } .toast.bad { color: var(--ink); }
+.x:hover { color: var(--gold); } .menu button { border-radius: 0; } .credit { font-style: normal; }
+.modal { background: rgba(18, 36, 28, .6); } .keys dt { color: var(--gold); }
+.title { background: var(--paper) radial-gradient(ellipse at 50% 30%, #2b634d 0, transparent 65%); }
+.cert { outline: 0; background: var(--card); box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 7px var(--card), inset 0 0 0 8px rgba(231, 182, 60, .55), 0 14px 40px rgba(18, 36, 28, .5); border-radius: 12px; }
+.cert h1 { font-family: var(--title); font-weight: 400; letter-spacing: 0; color: var(--gold); text-shadow: 3px 3px 0 var(--verm); font-size: clamp(46px, 13vw, 104px); margin-right: 0; text-transform: none; }
+.cert .tag { font-style: normal; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: clamp(12px, 3vw, 15px); color: var(--ink); }
+.orn { color: var(--gold); } .orn span { border-top-color: var(--gold); }
+.btn.big { box-shadow: inset 0 0 0 1.5px var(--rule); } .btn.big.primary { box-shadow: 0 4px 0 var(--red-deep); }
+.minor button:hover { color: var(--gold); border-color: var(--gold); }
+@media (max-width: 820px) {
+  .brand { font-size: 19px; text-shadow: 1px 1px 0 var(--verm); }
+  .speeds { gap: 4px; padding: 0 6px; } .speeds button { width: 44px; }
+  .rail { background: var(--card); gap: 0; box-shadow: inset 0 2px 0 var(--gold); }
+  .rail button { border-radius: 0; box-shadow: none; background: none; font-size: 8.5px; letter-spacing: 0; }
+  .rail button.on { box-shadow: none; }
+  .panel { border-radius: var(--r) var(--r) 0 0; }
+}
+
+/* ── title: the approved Pay Streak frame ── */
+.coach { position: fixed; inset: 0; height: 100dvh; overflow: hidden; background: radial-gradient(120% 70% at 50% 46%, var(--lift) 0, var(--paper) 55%, var(--card) 100%); }
+.coachart { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lining { position: absolute; inset: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left)); border: 1.5px solid var(--gold); border-radius: 16px; pointer-events: none; }
+.lining::after { content: ""; position: absolute; inset: 4px; border: 1px solid var(--verm); border-radius: 11px; }
+.tscreen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: calc(34px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); }
+.tscreen h1 { font-family: var(--title); font-weight: 400; font-size: clamp(56px, 21vw, 84px); line-height: .92; letter-spacing: .01em; text-transform: uppercase; color: var(--gold); text-shadow: .03em .035em 0 var(--card), .065em .075em 0 var(--verm); }
+.tscreen h1 span { display: block; }
+.ttag { font-weight: 700; font-size: var(--t2); letter-spacing: .22em; text-transform: uppercase; margin-top: 12px; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.ttag::before { content: none; width: 18px; border-top: 1.5px solid var(--gold); }
+.tpremise { display: none; }
+.tmenu { margin-top: auto; width: 100%; max-width: 420px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tbtn { min-height: 56px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; line-height: 1.2; }
+.tbtn.primary { background: var(--gold); color: var(--on-gold); box-shadow: 0 3px 0 var(--red-deep), 0 5px 0 var(--card); }
+.tbtn.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--red-deep); }
+.tbtn.second { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--gold), 0 5px 0 rgba(0, 0, 0, .18); }
+.tbtn.second:disabled { box-shadow: inset 0 0 0 1.5px rgba(231, 182, 60, .4); color: var(--ink-2); }
+@media (hover: hover) { .tbtn.primary:hover { background: #f0c552; } .tbtn.second:hover:not(:disabled) { background: #18392c; } }
+.tbtn small { font-weight: 400; font-size: var(--t1); letter-spacing: .04em; text-transform: none; color: var(--ink-2); }
+.tsmall { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; font-size: var(--t2); margin-top: 2px; }
+.tsmall button { min-height: 44px; padding: 0 8px; display: flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .04em; }
+.tsmall button b { color: var(--gold); }
+.tby { color: var(--ink-2); padding: 0 8px; font-size: var(--t2); }
+@media (min-height: 760px) { .tscreen h1 { font-size: clamp(56px, 22vw, 88px); } .tscreen { padding-top: calc(48px + env(safe-area-inset-top)); }
+  .tpremise { display: block; font-size: var(--t2); color: var(--ink-2); max-width: 34ch; margin: auto auto 16px; text-wrap: balance; } .tmenu { margin-top: 0; } }
+@media (min-width: 900px) {
+  .lining { inset: 20px; border-radius: 26px; } .lining::after { inset: 5px; border-radius: 20px; }
+  .tscreen { display: grid; grid-template-columns: minmax(0, 1fr) clamp(140px, 18vw, 260px) minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: clamp(48px, 10.5vh, 96px) clamp(40px, 6vw, 88px) clamp(40px, 8vh, 72px); text-align: left; align-items: start; }
+  .tscreen h1 { display: contents; }
+  .tscreen h1 span { font-family: var(--title); font-size: clamp(72px, 9.2vw, 132px); line-height: .92; color: var(--gold); text-transform: uppercase; text-shadow: .03em .035em 0 var(--card), .065em .075em 0 var(--verm); }
+  .tscreen h1 span:first-child { grid-column: 1; grid-row: 1; justify-self: end; text-align: right; } .tscreen h1 span:last-child { grid-column: 3; grid-row: 1; }
+  .ttag { grid-column: 1; grid-row: 3; align-self: end; font-size: 14px; letter-spacing: .18em; margin: 0 0 150px; justify-self: start; } .ttag::before { content: ""; }
+  .tpremise { display: block; grid-column: 1; grid-row: 3; align-self: end; margin: 0 0 58px; max-width: 27ch; font-size: 20px; line-height: 1.4; color: var(--ink); text-wrap: pretty; }
+  .tmenu { grid-column: 3; grid-row: 3; align-self: end; justify-self: end; width: min(340px, 100%); grid-template-columns: 1fr; gap: 12px; margin: 0; }
+  .tbtn { min-height: 64px; font-size: 17px; flex-direction: row; justify-content: space-between; padding: 0 24px; } .tbtn small { font-size: var(--t2); }
+  .tsmall { margin-top: 8px; }
+}

@@ -62,4 +62,4 @@ Key decisions:
 - **Time** is a fixed tick independent of frame rate; money only moves in a tick or a validated command. Rendering interpolates.
 - **Determinism**: the world, the market and every discovery derive from the seed. Reloading never rerolls anything.
 
-Sound effects, ambience and music were generated for this project (see `assets/audio/*.license.json`). Fonts are Old Standard TT and Newsreader (SIL OFL 1.1, `public/fonts`).
+Sound effects, ambience and music were generated for this project (see `assets/audio/*.license.json`). Fonts are Abril Fatface and Archivo (SIL OFL 1.1, `public/fonts`).

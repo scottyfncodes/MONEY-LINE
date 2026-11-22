@@ -6,7 +6,7 @@ export const VS = 0.25;
 
 /** The world's colours. Warm, natural, a little faded: a model railway under a low sun. */
 export const PAL = {
-  table: 0xd8ccb2,
+  table: 0x1f4d3a,
   grassLow: 0xa3b56c, grassHigh: 0x86a05e, forestFloor: 0x6a8a52, meadow: 0xc9c27c,
   rock: 0x8d8a84, rockDark: 0x6f6c68, rockPale: 0xb9b6ae, snow: 0xe9e7df,
   earth: 0xa57f52, earthDark: 0x86623d, riverbed: 0x5e6b58, water: 0x4c8d96, waterDeep: 0x3a7480,
