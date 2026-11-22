@@ -32,22 +32,28 @@ class Puffs {
   private age = new Float32Array(this.max); private life = new Float32Array(this.max);
   private size = new Float32Array(this.max); private grow = new Float32Array(this.max);
   private shade = new Float32Array(this.max * 3); private alpha = new Float32Array(this.max);
-  private aSize = new Float32Array(this.max); private aAlpha = new Float32Array(this.max);
+  private aSize = new Float32Array(this.max); private aAlpha = new Float32Array(this.max); private aFrame = new Float32Array(this.max);
   constructor() {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(this.shade, 3));
     geo.setAttribute('aSize', new THREE.BufferAttribute(this.aSize, 1));
     geo.setAttribute('aAlpha', new THREE.BufferAttribute(this.aAlpha, 1));
+    geo.setAttribute('aFrame', new THREE.BufferAttribute(this.aFrame, 1));
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, vertexColors: true,
-      uniforms: { uScale: { value: 600 } },
-      vertexShader: `attribute float aSize; attribute float aAlpha; varying float vA; varying vec3 vC; uniform float uScale;
-        void main(){ vA=aAlpha; vC=color; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uScale/(-mv.z); gl_Position=projectionMatrix*mv; }`,
-      fragmentShader: `varying float vA; varying vec3 vC;
-        void main(){ vec2 d=gl_PointCoord-0.5; float r=length(d)*2.0; float a=smoothstep(1.0,0.25,r)*vA; if(a<0.01) discard;
+      uniforms: { uScale: { value: 600 }, uMap: { value: null }, uHasMap: { value: 0 } },
+      vertexShader: `attribute float aSize; attribute float aAlpha; attribute float aFrame; varying float vA; varying vec3 vC; varying float vF; uniform float uScale;
+        void main(){ vA=aAlpha; vC=color; vF=aFrame; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uScale/(-mv.z); gl_Position=projectionMatrix*mv; }`,
+      // the puff's shape comes from the produced smoke flipbook (6×6 frames); a soft disc stands in until it loads
+      fragmentShader: `varying float vA; varying vec3 vC; varying float vF; uniform sampler2D uMap; uniform float uHasMap;
+        void main(){ vec2 d=gl_PointCoord-0.5; float r=length(d)*2.0; float disc=smoothstep(1.0,0.25,r);
+          float f=floor(vF+0.5); vec2 cell=vec2(mod(f,6.0),floor(f/6.0)); vec2 uv=(cell+0.5+d*0.6)/6.0;
+          float shape=mix(disc, max(texture2D(uMap,uv).a, disc*0.55), uHasMap);
+          float a=shape*vA; if(a<0.01) discard;
           float lit=0.82+0.18*smoothstep(0.6,-0.6,d.y); gl_FragColor=vec4(vC*lit,a); }`,
     });
+    new THREE.TextureLoader().load('/assets/fx/smoke_flipbook.png', (tex) => { tex.flipY = false; tex.needsUpdate = true; mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; }, undefined, () => { /* the disc remains */ });
     this.points = new THREE.Points(geo, mat);
     this.points.frustumCulled = false;
     geo.setDrawRange(0, 0);
@@ -76,11 +82,12 @@ class Puffs {
       this.pos[i * 3] += (this.vel[i * 3] + 0.12) * dt; this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt; this.pos[i * 3 + 2] += (this.vel[i * 3 + 2] + 0.05) * dt;
       this.vel[i * 3 + 1] *= 1 - 0.5 * dt;
       this.aSize[i] = this.size[i] + this.grow[i] * t;
+      this.aFrame[i] = Math.min(31, Math.floor(t * 32));
       this.aAlpha[i] = this.alpha[i] * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88);
     }
     const g = this.points.geometry;
     g.setDrawRange(0, this.n);
-    g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; g.attributes.aSize.needsUpdate = true; g.attributes.aAlpha.needsUpdate = true;
+    g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; g.attributes.aSize.needsUpdate = true; g.attributes.aAlpha.needsUpdate = true; g.attributes.aFrame.needsUpdate = true;
   }
 }
 

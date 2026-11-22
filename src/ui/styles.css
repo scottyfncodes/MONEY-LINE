@@ -321,3 +321,7 @@ select { color: var(--ink); background: var(--card); } .meter { height: 8px; bor
   .tbtn { min-height: 64px; font-size: 17px; flex-direction: row; justify-content: space-between; padding: 0 24px; } .tbtn small { font-size: var(--t2); }
   .tsmall { margin-top: 8px; }
 }
+.sheetlogo { width: min(346px, 100%); height: auto; border-radius: 6px; justify-self: start; }
+a.credit, a.tby { text-decoration: none; } a.credit:hover, a.tby:hover { color: var(--gold); text-decoration: underline; }
+a.tby { min-height: 44px; display: inline-flex; align-items: center; }
+.toast.good { color: var(--ink); }
