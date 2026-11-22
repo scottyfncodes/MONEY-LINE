@@ -232,9 +232,17 @@ function Title() {
   );
 }
 
+/** Logged through the global reporter when it is installed (main.tsx); falls back to the console. */
+function renderFault(e: Error) {
+  const r = (window as unknown as { __mlReport?: (e: Error) => void }).__mlReport;
+  if (r) r(e); else console.error('[MONEY LINE] render:', e);
+}
+
 class Boundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
   static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  // the boundary shows its own screen; the reporter only logs and records
+  componentDidCatch(e: Error) { renderFault(e); }
   render() {
     if (!this.state.error) return this.props.children;
     return <main className="title"><div className="cert"><h1>MONEY LINE</h1><p className="premise">The game hit a problem and stopped: {this.state.error}. Your last autosave is intact.</p><div className="actions"><button type="button" className="btn primary big" onClick={() => location.reload()}>Reload</button></div></div></main>;
