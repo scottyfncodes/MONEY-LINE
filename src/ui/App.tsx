@@ -78,12 +78,13 @@ function ToolRail() {
 function Objectives() {
   const g = useUI((s) => s.game)!;
   useUI((s) => s.rev);
-  const [open, setOpen] = useState(true);
+  // on a phone the valley comes first: the card starts as one line and opens on tap
+  const [open, setOpen] = useState(() => window.innerWidth > 820);
   const cur = OBJECTIVES[g.objective];
   return (
     <section className={`objectives ${open ? '' : 'shut'}`} aria-label="Objectives">
       <button type="button" className="objhead" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <h2>Objectives</h2><em>{Math.min(g.objective + 1, OBJECTIVES.length)} of {OBJECTIVES.length}</em>
+        <h2>Objectives</h2><span className="objmini">{cur ? cur.title : 'The line is yours'}</span><em>{Math.min(g.objective + 1, OBJECTIVES.length)} of {OBJECTIVES.length}</em>
       </button>
       {open && (cur ? (
         <div className="objbody">

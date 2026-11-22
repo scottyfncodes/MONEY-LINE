@@ -28,8 +28,31 @@ function projectAssets(): Plugin {
   };
 }
 
+/**
+ * The approved icon set lives in /assets/icons. Its tags are added after Vite's own HTML asset pass, so the links
+ * point at those exact files rather than at hashed copies.
+ */
+function appIcons(): Plugin {
+  const tag = (attrs: Record<string, string>, t = 'link') => ({ tag: t, attrs, injectTo: 'head' as const });
+  return {
+    name: 'money-line-icons',
+    transformIndexHtml: {
+      order: 'post',
+      handler: () => [
+        tag({ rel: 'icon', href: '/assets/icons/favicon.ico', sizes: '48x48' }),
+        tag({ rel: 'icon', href: '/assets/icons/favicon-32.png', type: 'image/png', sizes: '32x32' }),
+        tag({ rel: 'icon', href: '/assets/icons/favicon-16.png', type: 'image/png', sizes: '16x16' }),
+        tag({ rel: 'apple-touch-icon', href: '/assets/icons/apple-touch-icon.png', sizes: '180x180' }),
+        tag({ rel: 'manifest', href: '/manifest.webmanifest' }),
+        tag({ name: 'theme-color', content: '#1f4d3a' }, 'meta'),
+        tag({ name: 'apple-mobile-web-app-title', content: 'MONEY LINE' }, 'meta'),
+      ],
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), projectAssets()],
+  plugins: [react(), projectAssets(), appIcons()],
   build: { assetsDir: 'bundle', target: 'es2022', chunkSizeWarningLimit: 1200 },
   test: { include: ['tests/**/*.test.ts'], environment: 'node' },
 } as never);

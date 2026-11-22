@@ -80,7 +80,11 @@ export function GameView() {
         else if (e.type === 'sale') {
           world.burst('sale', e.x, e.z); audio.play('coin', 0.6); ui().toast('good', `Shipment sold: ${fmtMoney(e.amount)}`);
           // the money lands where the player reads it: the cash figure rings gold for a moment
-          const cash = document.querySelector('.stat'); if (cash) { cash.classList.remove('paid'); void (cash as HTMLElement).offsetWidth; cash.classList.add('paid'); cash.setAttribute('data-paid', `+ ${fmtMoney(e.amount)}`); }
+          const cash = document.querySelector('.stat'); if (cash) { cash.classList.remove('paid'); void (cash as HTMLElement).offsetWidth; cash.classList.add('paid'); }
+          // a gold plate under the bar states the amount (its own element, so nothing can clip it)
+          document.querySelector('.paidplate')?.remove();
+          const plate = document.createElement('div'); plate.className = 'paidplate'; plate.textContent = `+ ${fmtMoney(e.amount)}`; plate.setAttribute('role', 'status');
+          document.querySelector('.game')?.appendChild(plate); setTimeout(() => plate.remove(), 4600);
         }
         else if (e.type === 'built') { world.burst('build', e.x, e.z); audio.play('thud', 0.5); }
         else if (e.type === 'depart') audio.whistle(0.16);
@@ -322,12 +326,12 @@ export function GameView() {
         const gold = game.deposits[0];
         if (!game.edges.length && !game.jobs.length) { run({ type: 'borrow', amount: 45000 }); run({ type: 'buildLine', way: suggestRoute(game, game.nodes[0], { x: gold.x - 3, z: gold.z + 4 })! }); }
         if (stage === 'line') return;
-        if (stage === 'railhead') { days(9); world.focus(game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].x ?? gold.x, game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].z ?? gold.z, 30); game.events.length = 0; return; }
+        if (stage === 'railhead') { days(9); st.set({ speed: 2 }); world.cam.dist = 20; world.cam.pitch = 0.6; world.focus(game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].x ?? gold.x, game.jobs[0]?.pts[Math.max(0, game.jobs[0].applied)].z ?? gold.z, 20); game.events.length = 0; return; }
         while (game.jobs.length) days(1);
         if (!game.mines.length) { const s0 = hook.findSite('mine', gold.x, gold.z); if (s0) run({ type: 'mine', x: s0.x, z: s0.z }); const e = game.edges[0], p = e.pts[e.pts.length - 4]; run({ type: 'platform', x: p.x, z: p.z }); }
         if (stage === 'nearSale') {
           for (let i = 0; i < 4000; i++) { const t = game.trains[0]; if (t.phase === 'inbound' && t.trip && t.trip.dist > t.trip.length - 7) break; tick(game); }
-          const n = game.nodes[0]; world.cam.x = n.x + 1; world.cam.z = n.z + 1; world.cam.dist = 30; world.cam.pitch = 0.62; st.set({ speed: 1 });
+          const n = game.nodes[0]; world.cam.x = n.x + (window.innerWidth > 820 ? -5 : 1.5); world.cam.z = n.z + 1; world.cam.dist = 30; world.cam.pitch = 0.62; st.set({ speed: 1 });
         }
         game.events.length = 0;
       },

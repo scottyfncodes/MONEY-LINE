@@ -298,7 +298,19 @@ export function makeRailhead(): THREE.Group {
     k.cyl(c, 0.035, 0.13, x, 0, z, 5); k.add(new THREE.SphereGeometry(0.03, 5, 4), PAL.canvas, x, 0.16, z);
   }
   k.roof(PAL.canvas, 0.3, 0.2, 0.28, 0.1, 0, 0.6, 0.3);
+  // the work train: a small contractor's engine behind the rail car, and a derrick swinging rails forward
+  k.box(PAL.black, 0.6, 0.05, 0.26, -1.3, 0.1, 0);
+  k.barrel(PAL.boiler, 0.11, 0.38, -1.22, 0.3, 0, 10);
+  k.box(PAL.cab, 0.2, 0.3, 0.28, -1.52, 0.15, 0); k.box(PAL.roof, 0.26, 0.03, 0.32, -1.52, 0.45, 0);
+  k.cyl(PAL.black, 0.04, 0.22, -1.08, 0.4, 0, 8, 0.06);
+  for (const wx of [-1.45, -1.15]) for (const side of [-1, 1]) k.add(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 8), PAL.iron, wx, 0.07, side * 0.13, Math.PI / 2, 0, 0);
+  k.box(PAL.timberDark, 0.06, 0.95, 0.06, -0.2, 0.1, 0);
+  k.add(new THREE.BoxGeometry(1.0, 0.05, 0.05), PAL.timberDark, 0.2, 0.95, 0, 0, 0, 0.32);
+  k.add(new THREE.BoxGeometry(0.02, 0.5, 0.02), PAL.iron, 0.62, 0.82, 0);
+  k.box(PAL.steel, 0.5, 0.02, 0.03, 0.62, 0.52, 0);
+  k.add(new THREE.BoxGeometry(0.03, 0.9, 0.03), PAL.flag, 0.9, 0.45, 0.32); k.add(new THREE.BoxGeometry(0.3, 0.18, 0.02), PAL.flag, 1.05, 0.82, 0.32);
   g.add(k.build(MAT.solid));
+  g.userData.stack = new THREE.Vector3(-1.08, 0.66, 0);
   return g;
 }
 

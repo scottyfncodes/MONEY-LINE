@@ -480,6 +480,10 @@ export class World {
         this.puffs.emit(p.x, p.y, p.z, { vy: 0.55, life: 3.4, size: 0.16, grow: 0.9, shade: i < 2 ? 0.8 : 0.5, alpha: 0.42 });
       });
     }
+    for (const g of this.railheads.values()) if (g.visible && Math.random() < dt * 4) {
+      const w = (g.userData.stack as THREE.Vector3).clone().applyEuler(g.rotation).add(g.position);
+      this.puffs.emit(w.x, w.y, w.z, { vy: 0.7, life: 2.2, size: 0.14, grow: 0.7, shade: 0.9, alpha: 0.6 });
+    }
     for (const g of this.railheads.values()) if (g.visible && Math.random() < dt * 5) this.puffs.emit(g.position.x + (Math.random() - 0.5) * 0.8, g.position.y + 0.08, g.position.z + (Math.random() - 0.5) * 0.8, { vy: 0.25, life: 1.1, size: 0.12, grow: 0.3, tint: 0xc9ad84, alpha: 0.45 });
   }
 
